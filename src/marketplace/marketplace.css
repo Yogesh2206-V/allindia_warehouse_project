@@ -737,3 +737,109 @@
   background: #fef9c3;
   color: #854d0e;
 }
+
+/* =========================================
+   Responsive Grid Utilities
+   ========================================= */
+.mp-detail-responsive-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 24px;
+}
+
+@media (max-width: 880px) {
+  .mp-detail-responsive-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+}
+
+@media (max-width: 640px) {
+  .marketplace-container {
+    padding: 12px 12px 40px !important;
+  }
+}
+
+/* =========================================
+   Navbar Clean Responsive Rules
+   ========================================= */
+.aiw-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.aiw-hamburger-btn {
+  display: none;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  color: #0f2744;
+  flex-shrink: 0;
+}
+
+.aiw-mobile-drawer {
+  display: none;
+}
+
+.aiw-nav-post-btn {
+  padding: 9px 16px;
+  background: linear-gradient(135deg, #e11d48 0%, #be123c 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.86rem;
+  font-weight: 800;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 3px 10px rgba(225, 29, 72, 0.3);
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.aiw-nav-post-btn:hover {
+  background: linear-gradient(135deg, #be123c 0%, #9f1239 100%);
+  transform: translateY(-1px);
+}
+
+@media (max-width: 992px) {
+  .aiw-nav-links {
+    display: none !important;
+  }
+  .aiw-hamburger-btn {
+    display: flex !important;
+  }
+  .aiw-mobile-drawer {
+    display: flex !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .aiw-nav-post-btn {
+    display: none !important;
+  }
+}
+
+/* Post Property Wizard Enhancements */
+.aiw-wizard-card {
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  padding: 24px 28px;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05);
+}
+
+@media (max-width: 640px) {
+  .aiw-wizard-card {
+    padding: 16px 14px;
+  }
+}
+
+

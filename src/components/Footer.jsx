@@ -109,8 +109,10 @@ export default function Footer({ onOpenRequirement, onNavigateSection }) {
         .footer-root {
           background: #0f172a;
           color: #94a3b8;
-          padding: 64px 0 28px;
+          padding: 48px 0 28px;
           border-top: 1px solid rgba(255, 255, 255, 0.08);
+          margin-top: auto;
+          width: 100%;
         }
 
         .footer-grid {

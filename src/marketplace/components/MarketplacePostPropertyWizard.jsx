@@ -1,173 +1,286 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Building2, 
   MapPin, 
-  CheckCircle2, 
+  Layers, 
+  IndianRupee, 
   Camera, 
-  DollarSign, 
-  Phone, 
+  CheckCircle2, 
   ArrowRight, 
-  ArrowLeft, 
+  ArrowLeft,
+  UploadCloud, 
   ShieldCheck, 
-  Clock, 
-  Sparkles 
+  AlertCircle, 
+  Sparkles, 
+  Check, 
+  Phone, 
+  Mail, 
+  User, 
+  Calculator, 
+  Eye, 
+  Truck, 
+  Zap, 
+  Flame, 
+  Shield 
 } from 'lucide-react';
-import { CITIES_LIST, PROPERTY_TYPES } from '../data/sampleMarketplaceProperties';
+import { 
+  STATES_LIST, 
+  CITIES_BY_STATE, 
+  LOCALITIES_BY_CITY,
+  CATEGORIES_DATA
+} from '../data/sampleMarketplaceProperties';
 import { marketplaceApi } from '../services/marketplaceApi';
+import confetti from 'canvas-confetti';
 
 export default function MarketplacePostPropertyWizard({ onComplete, onCancel }) {
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSubmitted, setIsSubmitted] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
+  const [isSuccess, setIsSuccess] = useState(false);
 
-  // Form State
+  // Form State with precise technical and commercial defaults
   const [formData, setFormData] = useState({
-    purpose: 'rent',
-    type: 'Warehouse',
+    // Step 1: Basics
+    postedAs: 'OWNER', // OWNER | DEALER
+    dealType: 'RENT', // SALE | RENT
+    propertyType: 'WAREHOUSE', // INDUSTRIAL | WAREHOUSE | LAND | COLD_STORAGE
+    subType: 'Grade-A Logistics Warehouse',
     title: '',
-    city: 'Chennai',
-    locality: '',
+
+    // Step 2: Location
     state: 'Tamil Nadu',
-    area_sqft: '',
-    clear_height: '32 Ft',
-    docks: '4',
-    power_backup: '100 kVA',
-    price_or_rent_psf: '',
-    deposit: '6 Months',
-    status: 'Ready to Move',
-    availability: 'Immediate',
-    features: ['Loading Docks', 'Fire Safety', '24x7 Security', 'Truck Access'],
-    imageUrl: '',
+    city: 'Chennai',
+    locality: 'Porur',
+    address: '',
+    pincode: '600116',
+    landmark: 'Near Mount-Poonamallee Trunk Road',
+
+    // Step 3: Technical Specs & Dimensions
+    totalArea: '35000',
+    areaUnit: 'SQFT',
+    mezzanineArea: '3000',
+    ceilingHeightFt: '32',
+    eavesHeightFt: '28',
+    loadingDocks: '4',
+    dockLevellers: '2',
+    plinthHeightFt: '4.0',
+    floorType: 'FM2 Laser Screed Flooring',
+    floorLoadTon: '6',
+    powerKva: '100',
+    dgBackup: true,
+    roadWidthFt: '60',
+    truckAccess: true,
+    fireSafety: 'Fire NOC & ESFR Sprinklers',
+    possessionStatus: 'Ready to Move',
+    availableFrom: 'Immediate',
+
+    // Step 4: Commercials & Pricing
+    ratePsf: '28', // Rent psf/mo or Sale psf
+    depositMonths: '6',
+    lockInMonths: '36',
+    escalationPercent: '5',
+    maintenancePsf: '2.5',
+    negotiable: true,
+
+    // Step 5: Media & Contact
     description: '',
-    owner_name: '',
-    owner_phone: '',
-    otp: ''
+    poster_name: '',
+    poster_phone: '',
+    poster_email: '',
+    company: '',
+    photos: [
+      'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=800&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1587293852726-70cdb56c2866?w=800&auto=format&fit=crop&q=80'
+    ]
   });
 
-  const availableFeatures = [
-    "Loading Docks",
-    "Fire Safety",
-    "Power Backup",
-    "24x7 Security",
-    "Truck Access",
-    "Cold Storage",
-    "Crane Provisions",
-    "Office Block Attached"
+  // Pre-fill user profile if logged in
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('aiw_auth_user');
+      if (stored) {
+        const u = JSON.parse(stored);
+        setFormData(prev => ({
+          ...prev,
+          poster_name: prev.poster_name || u.name || '',
+          poster_email: prev.poster_email || u.email || '',
+          poster_phone: prev.poster_phone || u.phone || '',
+          company: prev.company || u.company || ''
+        }));
+      }
+    } catch (e) {}
+  }, []);
+
+  // Cascading Location Helpers
+  const availableCities = CITIES_BY_STATE[formData.state] || ["Chennai", "Coimbatore"];
+  const availableLocalities = LOCALITIES_BY_CITY[formData.city] || ["Porur", "Sriperumbudur", "Ambattur"];
+  const availableSubTypes = CATEGORIES_DATA[formData.propertyType]?.subTypes || [
+    "Grade-A Logistics Warehouse",
+    "Industrial Factory Shed",
+    "Cold Storage Unit",
+    "Industrial Open Plot"
   ];
 
-  const handleFeatureToggle = (feat) => {
-    const current = formData.features;
-    let updated;
-    if (current.includes(feat)) {
-      updated = current.filter(f => f !== feat);
+  const handleStateChange = (st) => {
+    const cities = CITIES_BY_STATE[st] || ["Chennai"];
+    const city = cities[0] || '';
+    const locs = LOCALITIES_BY_CITY[city] || ['Porur'];
+    setFormData(prev => ({
+      ...prev,
+      state: st,
+      city,
+      locality: locs[0] || ''
+    }));
+  };
+
+  const handleCityChange = (c) => {
+    const locs = LOCALITIES_BY_CITY[c] || ['Porur'];
+    setFormData(prev => ({
+      ...prev,
+      city: c,
+      locality: locs[0] || ''
+    }));
+  };
+
+  // Precise Commercial Calculations
+  const areaNum = Number(formData.totalArea) || 0;
+  const rateNum = Number(formData.ratePsf) || 0;
+  
+  // For Rent:
+  const monthlyRent = formData.dealType === 'RENT' ? areaNum * rateNum : 0;
+  const annualRent = monthlyRent * 12;
+  const depositAmount = monthlyRent * (Number(formData.depositMonths) || 6);
+
+  // For Sale:
+  const outrightPrice = formData.dealType === 'SALE' ? areaNum * rateNum : 0;
+
+  // Indian Currency Formatter (Lakhs & Crores)
+  const formatIndianCurrency = (num) => {
+    if (!num || num === 0) return '₹0';
+    if (num >= 10000000) {
+      return `₹${(num / 10000000).toFixed(2)} Cr`;
+    }
+    if (num >= 100000) {
+      return `₹${(num / 100000).toFixed(2)} Lakhs`;
+    }
+    return `₹${num.toLocaleString('en-IN')}`;
+  };
+
+  const handleNext = () => {
+    if (currentStep < 5) {
+      setCurrentStep(prev => prev + 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
-      updated = [...current, feat];
-    }
-    setFormData({ ...formData, features: updated });
-  };
-
-  // Step Navigations
-  const handleNextStep = (e) => {
-    if (e) e.preventDefault();
-    setErrorMsg('');
-
-    if (currentStep === 1) {
-      if (!formData.title.trim()) {
-        setErrorMsg('Please enter a brief property title');
-        return;
-      }
-      if (!formData.locality.trim()) {
-        setErrorMsg('Please specify locality or industrial corridor');
-        return;
-      }
-      setCurrentStep(2);
-    } else if (currentStep === 2) {
-      if (!formData.area_sqft || Number(formData.area_sqft) <= 0) {
-        setErrorMsg('Please enter a valid warehouse area in sq ft');
-        return;
-      }
-      setCurrentStep(3);
-    } else if (currentStep === 3) {
-      if (!formData.price_or_rent_psf) {
-        setErrorMsg('Please enter expected price or rent per sq.ft');
-        return;
-      }
-      setCurrentStep(4);
+      handleSubmit();
     }
   };
 
-  const handleFinalSubmit = async (e) => {
-    e.preventDefault();
-    if (!formData.owner_name.trim()) {
-      setErrorMsg('Please enter owner or company name');
-      return;
+  const handleBack = () => {
+    if (currentStep > 1) {
+      setCurrentStep(prev => prev - 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
-    if (formData.owner_phone.replace(/\D/g, '').length < 10) {
-      setErrorMsg('Please enter a valid 10-digit mobile number');
-      return;
-    }
+  };
 
+  const handleSubmit = async () => {
     setIsSubmitting(true);
-    setErrorMsg('');
-
     try {
-      const propertyPayload = {
-        title: formData.title,
-        type: formData.type,
-        purpose: formData.purpose,
-        city: formData.city,
-        locality: formData.locality,
-        state: formData.state,
-        area_sqft: Number(formData.area_sqft),
-        price_or_rent_psf: Number(formData.price_or_rent_psf),
-        deposit: formData.deposit,
-        status: formData.status,
-        availability: formData.availability,
-        clear_height: formData.clear_height,
-        docks: Number(formData.docks) || 0,
-        power_backup: formData.power_backup,
-        features: formData.features,
-        images: formData.imageUrl ? [formData.imageUrl] : [
-          "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80"
-        ],
-        description: formData.description,
-        owner_name: formData.owner_name,
-        owner_phone: formData.owner_phone
+      const codeGen = `AIW-PROP-${Math.floor(100000 + Math.random() * 900000)}`;
+      const displayTitle = formData.title.trim() || 
+        `${formData.totalArea} Sq.Ft ${formData.subType} in ${formData.locality}, ${formData.city}`;
+
+      const payload = {
+        ...formData,
+        id: codeGen,
+        code: codeGen,
+        title: displayTitle,
+        slug: `${displayTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${formData.locality.toLowerCase()}`,
+        area_sqft: areaNum,
+        totalArea: areaNum,
+        price_or_rent_psf: rateNum,
+        monthlyRent: monthlyRent,
+        price: outrightPrice,
+        status: 'VERIFIED',
+        approved: true,
+        verified: true,
+        attributes: {
+          ceilingHeightFt: Number(formData.ceilingHeightFt) || 32,
+          loadingDocks: Number(formData.loadingDocks) || 4,
+          dockLevellers: Number(formData.dockLevellers) || 2,
+          truckAccess: formData.truckAccess,
+          powerKva: Number(formData.powerKva) || 100,
+          roadWidthFt: Number(formData.roadWidthFt) || 60,
+          floorLoadTon: Number(formData.floorLoadTon) || 6,
+          fireSafety: formData.fireSafety
+        },
+        image: formData.photos[0],
+        images: formData.photos,
+        created_at: new Date().toISOString()
       };
 
-      await marketplaceApi.postProperty(propertyPayload);
+      await marketplaceApi.postProperty(payload);
       setIsSubmitting(false);
-      setIsSubmitted(true);
-    } catch (err) {
+      setIsSuccess(true);
+      try {
+        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+      } catch (e) {}
+    } catch (e) {
+      console.error(e);
       setIsSubmitting(false);
-      setErrorMsg('Submission failed. Please try again.');
     }
   };
 
-  if (isSubmitted) {
+  const steps = [
+    { num: 1, label: 'Basics', icon: Building2 },
+    { num: 2, label: 'Location', icon: MapPin },
+    { num: 3, label: 'Technical Specs', icon: Layers },
+    { num: 4, label: 'Commercials', icon: IndianRupee },
+    { num: 5, label: 'Submit & Review', icon: Camera }
+  ];
+
+  if (isSuccess) {
     return (
-      <div className="marketplace-container" style={{ padding: '40px 16px' }}>
-        <div className="mp-wizard-card" style={{ textAlign: 'center', padding: '40px 24px' }}>
-          <div style={{ width: 60, height: 60, borderRadius: '50%', background: '#dcfce7', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-            <CheckCircle2 size={36} />
+      <div className="marketplace-container" style={{ padding: '40px 16px', maxWidth: '640px', margin: '0 auto' }}>
+        <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #bbf7d0', padding: '36px 24px', textAlign: 'center', boxShadow: '0 8px 30px rgba(0,0,0,0.06)' }}>
+          <div style={{ width: 68, height: 68, borderRadius: '50%', background: '#ecfdf5', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px', boxShadow: '0 4px 14px rgba(5,150,105,0.2)' }}>
+            <CheckCircle2 size={40} />
           </div>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f2744', margin: '0 0 8px' }}>
-            Listing Submitted Successfully!
+          <div style={{ display: 'inline-block', background: '#f0fdf4', color: '#166534', padding: '3px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 800, marginBottom: '8px' }}>
+            ✓ INSTANT VERIFIED CLASSIFIEDS LISTING
+          </div>
+          <h2 style={{ fontSize: '1.45rem', fontWeight: 900, color: '#0f2744', marginBottom: '8px' }}>
+            Warehouse Property Listed Successfully!
           </h2>
-          <p style={{ color: '#64748b', fontSize: '0.92rem', maxWidth: '500px', margin: '0 auto 20px', lineHeight: 1.5 }}>
-            Your property <strong style={{ color: '#0f172a' }}>"{formData.title}"</strong> is submitted for verification. It will appear on the live portal after review by our logistics team.
+          <p style={{ color: '#475569', fontSize: '0.9rem', lineHeight: 1.5, marginBottom: '24px' }}>
+            Your listing has been published to India's premier industrial network. Occupiers and logistics leaders can now discover your property.
           </p>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#fef9c3', color: '#854d0e', padding: '8px 16px', borderRadius: '20px', fontSize: '0.85rem', fontWeight: 700, marginBottom: '24px' }}>
-            <Clock size={16} /> Status: Pending Verification Review
+          
+          <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '14px', marginBottom: '24px', textAlign: 'left' }}>
+            <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f2744' }}>
+              {formData.title || `${formData.totalArea} Sq.Ft Warehouse in ${formData.locality}, ${formData.city}`}
+            </div>
+            <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '4px' }}>
+              📍 {formData.locality}, {formData.city}, {formData.state} • {formData.dealType === 'RENT' ? `₹${formData.ratePsf}/sq ft/mo` : `₹${formData.ratePsf}/sq ft`}
+            </div>
           </div>
-          <div>
-            <button 
-              type="button" 
-              className="btn btn-red"
+
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn btn-navy"
               onClick={onComplete}
+              style={{ padding: '11px 24px', fontWeight: 800, background: '#004274', color: '#ffffff', borderRadius: '8px', cursor: 'pointer' }}
             >
-              Go to Marketplace Listings
+              Browse All Warehouses
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIsSuccess(false);
+                setCurrentStep(1);
+              }}
+              style={{ padding: '11px 20px', fontWeight: 700, background: '#f1f5f9', border: '1px solid #cbd5e1', color: '#334155', borderRadius: '8px', cursor: 'pointer' }}
+            >
+              Post Another Property
             </button>
           </div>
         </div>
@@ -175,379 +288,760 @@ export default function MarketplacePostPropertyWizard({ onComplete, onCancel }) 
     );
   }
 
-  const progressPercent = (currentStep / 4) * 100;
-
   return (
-    <div className="marketplace-container" style={{ padding: '30px 16px' }}>
-      <div className="mp-wizard-card">
-        {/* Wizard Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <div>
-            <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#004953', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Free Owner Listing
+    <div className="marketplace-container" style={{ padding: '20px 14px 60px', maxWidth: '820px', margin: '0 auto' }}>
+      
+      {/* Header Banner */}
+      <div style={{ marginBottom: '18px', textAlign: 'center' }}>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '3px 12px', background: '#ffe4e6', color: '#e11d48', borderRadius: '20px', fontSize: '0.74rem', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px' }}>
+          <Sparkles size={13} />
+          <span>100% Free Industrial Property Classifieds</span>
+        </div>
+        <h1 style={{ fontSize: '1.55rem', fontWeight: 900, color: '#0f2744', margin: '0 0 6px', letterSpacing: '-0.02em' }}>
+          Post Warehouse & Industrial Property
+        </h1>
+        <p style={{ color: '#64748b', fontSize: '0.86rem', margin: 0, lineHeight: 1.45 }}>
+          List with precise specs and connect with verified 3PL, FMCG, E-Commerce, and corporate tenants across India.
+        </p>
+      </div>
+
+      {/* Modern Stepper Indicator */}
+      <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px 16px', marginBottom: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+        
+        {/* Desktop Breadcrumbs (>= 640px) */}
+        <div className="desktop-only" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          {steps.map((s, idx) => {
+            const Icon = s.icon;
+            const isActive = currentStep === s.num;
+            const isDone = currentStep > s.num;
+            return (
+              <div key={s.num} style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: isActive || isDone ? 1 : 0.45 }}>
+                <div style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: '50%',
+                  background: isActive ? '#e11d48' : isDone ? '#059669' : '#e2e8f0',
+                  color: isActive || isDone ? '#ffffff' : '#64748b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '0.78rem',
+                  fontWeight: 800,
+                  boxShadow: isActive ? '0 2px 8px rgba(225,29,72,0.3)' : 'none'
+                }}>
+                  {isDone ? '✓' : s.num}
+                </div>
+                <span style={{ fontSize: '0.82rem', fontWeight: isActive ? 800 : 600, color: isActive ? '#0f2744' : '#64748b', whiteSpace: 'nowrap' }}>
+                  {s.label}
+                </span>
+                {idx < steps.length - 1 && (
+                  <div style={{ width: '20px', height: '1.5px', background: isDone ? '#059669' : '#e2e8f0', margin: '0 4px' }} />
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Mobile Progress Bar (< 640px) */}
+        <div style={{ display: 'block' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+            <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#0f2744' }}>
+              Step {currentStep} of 5: {steps[currentStep - 1].label}
             </span>
-            <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0f2744', margin: '2px 0 0' }}>
-              Post Your Industrial Space
-            </h2>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#e11d48' }}>
+              {Math.round((currentStep / 5) * 100)}% Complete
+            </span>
           </div>
-          {onCancel && (
-            <button 
-              type="button" 
+          <div style={{ width: '100%', height: '6px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
+            <div style={{ width: `${(currentStep / 5) * 100}%`, height: '100%', background: 'linear-gradient(90deg, #0f2744 0%, #e11d48 100%)', transition: 'width 0.3s ease' }} />
+          </div>
+        </div>
+
+      </div>
+
+      {/* Main Form Container */}
+      <div className="aiw-wizard-card">
+        
+        {/* ========================================================
+            STEP 1: BASICS & CATEGORY
+            ======================================================== */}
+        {currentStep === 1 && (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+              <div style={{ width: 32, height: 32, borderRadius: '8px', background: '#fee2e2', color: '#e11d48', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Building2 size={18} />
+              </div>
+              <h3 style={{ fontSize: '1.18rem', fontWeight: 900, color: '#0f2744', margin: 0 }}>
+                Step 1: Property Basics & Listing Type
+              </h3>
+            </div>
+
+            {/* Poster Role & Deal Type */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '14px', marginBottom: '16px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                  I am Posting As <span style={{ color: '#e11d48' }}>*</span>
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  {[
+                    { id: 'OWNER', label: 'Direct Owner', sub: '0% Brokerage' },
+                    { id: 'DEALER', label: 'Dealer / Broker', sub: 'Authorized' }
+                  ].map(r => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, postedAs: r.id }))}
+                      style={{
+                        padding: '10px 8px',
+                        borderRadius: '8px',
+                        border: formData.postedAs === r.id ? '2px solid #0f2744' : '1px solid #cbd5e1',
+                        background: formData.postedAs === r.id ? '#f0f9ff' : '#ffffff',
+                        fontWeight: 700,
+                        fontSize: '0.82rem',
+                        color: formData.postedAs === r.id ? '#0f2744' : '#475569',
+                        cursor: 'pointer',
+                        textAlign: 'center'
+                      }}
+                    >
+                      <div>{r.label}</div>
+                      <div style={{ fontSize: '0.68rem', color: formData.postedAs === r.id ? '#0284c7' : '#94a3b8' }}>{r.sub}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                  Deal / Transaction Type <span style={{ color: '#e11d48' }}>*</span>
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  {[
+                    { id: 'RENT', label: 'For Rent / Lease', sub: 'Monthly Lease' },
+                    { id: 'SALE', label: 'For Sale', sub: 'Outright Sale' }
+                  ].map(d => (
+                    <button
+                      key={d.id}
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, dealType: d.id }))}
+                      style={{
+                        padding: '10px 8px',
+                        borderRadius: '8px',
+                        border: formData.dealType === d.id ? '2px solid #e11d48' : '1px solid #cbd5e1',
+                        background: formData.dealType === d.id ? '#fff1f2' : '#ffffff',
+                        fontWeight: 700,
+                        fontSize: '0.82rem',
+                        color: formData.dealType === d.id ? '#e11d48' : '#475569',
+                        cursor: 'pointer',
+                        textAlign: 'center'
+                      }}
+                    >
+                      <div>{d.label}</div>
+                      <div style={{ fontSize: '0.68rem', color: formData.dealType === d.id ? '#e11d48' : '#94a3b8' }}>{d.sub}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Category & Subtype */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '14px', marginBottom: '16px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                  Primary Category <span style={{ color: '#e11d48' }}>*</span>
+                </label>
+                <select
+                  value={formData.propertyType}
+                  onChange={(e) => {
+                    const cat = e.target.value;
+                    const subs = CATEGORIES_DATA[cat]?.subTypes || [];
+                    setFormData(prev => ({
+                      ...prev,
+                      propertyType: cat,
+                      subType: subs[0] || ''
+                    }));
+                  }}
+                  style={{ width: '100%', height: '44px', padding: '0 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '0.88rem', background: '#f8fafc', fontWeight: 600, color: '#0f172a' }}
+                >
+                  {Object.keys(CATEGORIES_DATA).map(k => (
+                    <option key={k} value={k}>{CATEGORIES_DATA[k].label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                  Industrial Sub-Type <span style={{ color: '#e11d48' }}>*</span>
+                </label>
+                <select
+                  value={formData.subType}
+                  onChange={(e) => setFormData(prev => ({ ...prev, subType: e.target.value }))}
+                  style={{ width: '100%', height: '44px', padding: '0 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '0.88rem', background: '#f8fafc', fontWeight: 600, color: '#0f172a' }}
+                >
+                  {availableSubTypes.map(st => (
+                    <option key={st} value={st}>{st}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Listing Title */}
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                Listing Headline Title (Optional - auto-generated if blank)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. 45,000 Sq.Ft Grade-A Distribution Warehouse near Porur Trunk Road"
+                value={formData.title}
+                onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                style={{ width: '100%', height: '44px', padding: '0 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '0.88rem', background: '#ffffff', color: '#0f172a', boxSizing: 'border-box' }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================
+            STEP 2: LOCATION & MICRO-MARKET
+            ======================================================== */}
+        {currentStep === 2 && (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+              <div style={{ width: 32, height: 32, borderRadius: '8px', background: '#fee2e2', color: '#e11d48', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <MapPin size={18} />
+              </div>
+              <h3 style={{ fontSize: '1.18rem', fontWeight: 900, color: '#0f2744', margin: 0 }}>
+                Step 2: 3-Tier Location & Corridor Details
+              </h3>
+            </div>
+
+            {/* State, City, Locality Cascaded Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '16px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                  State <span style={{ color: '#e11d48' }}>*</span>
+                </label>
+                <select
+                  value={formData.state}
+                  onChange={(e) => handleStateChange(e.target.value)}
+                  style={{ width: '100%', height: '44px', padding: '0 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '0.88rem', background: '#f8fafc', fontWeight: 600, color: '#0f172a' }}
+                >
+                  {STATES_LIST.map(st => (
+                    <option key={st} value={st}>{st}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                  City / District <span style={{ color: '#e11d48' }}>*</span>
+                </label>
+                <select
+                  value={formData.city}
+                  onChange={(e) => handleCityChange(e.target.value)}
+                  style={{ width: '100%', height: '44px', padding: '0 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '0.88rem', background: '#f8fafc', fontWeight: 600, color: '#0f172a' }}
+                >
+                  {availableCities.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                  Industrial Locality / Hub <span style={{ color: '#e11d48' }}>*</span>
+                </label>
+                <select
+                  value={formData.locality}
+                  onChange={(e) => setFormData(prev => ({ ...prev, locality: e.target.value }))}
+                  style={{ width: '100%', height: '44px', padding: '0 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '0.88rem', background: '#f8fafc', fontWeight: 600, color: '#0f172a' }}
+                >
+                  {availableLocalities.map(loc => (
+                    <option key={loc} value={loc}>{loc}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Address & Pincode */}
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px', marginBottom: '16px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                  Address / Industrial Park Name <span style={{ color: '#e11d48' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Survey No. 142/2B, SIPCOT Industrial Park"
+                  value={formData.address}
+                  onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
+                  style={{ width: '100%', height: '44px', padding: '0 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '0.88rem', background: '#ffffff', color: '#0f172a', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                  Pincode <span style={{ color: '#e11d48' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  maxLength="6"
+                  placeholder="e.g. 600116"
+                  value={formData.pincode}
+                  onChange={(e) => setFormData(prev => ({ ...prev, pincode: e.target.value }))}
+                  style={{ width: '100%', height: '44px', padding: '0 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '0.88rem', background: '#ffffff', color: '#0f172a', boxSizing: 'border-box' }}
+                />
+              </div>
+            </div>
+
+            {/* Proximity Landmark */}
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                Key Highway / Port / Metro Proximity
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. 2.5 km from NH-48 Express Highway & 18 km from Chennai Port"
+                value={formData.landmark}
+                onChange={(e) => setFormData(prev => ({ ...prev, landmark: e.target.value }))}
+                style={{ width: '100%', height: '44px', padding: '0 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '0.88rem', background: '#ffffff', color: '#0f172a', boxSizing: 'border-box' }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================
+            STEP 3: PRECISE TECHNICAL SPECIFICATIONS
+            ======================================================== */}
+        {currentStep === 3 && (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+              <div style={{ width: 32, height: 32, borderRadius: '8px', background: '#fee2e2', color: '#e11d48', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Layers size={18} />
+              </div>
+              <h3 style={{ fontSize: '1.18rem', fontWeight: 900, color: '#0f2744', margin: 0 }}>
+                Step 3: Precise Technical Specifications
+              </h3>
+            </div>
+
+            {/* Area Dimensions */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '16px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                  Total Covered Area (Sq.Ft) <span style={{ color: '#e11d48' }}>*</span>
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid #0f2744', borderRadius: '8px', padding: '0 12px', background: '#ffffff' }}>
+                  <input
+                    type="number"
+                    placeholder="e.g. 35000"
+                    value={formData.totalArea}
+                    onChange={(e) => setFormData(prev => ({ ...prev, totalArea: e.target.value }))}
+                    style={{ border: 'none', outline: 'none', width: '100%', height: '42px', fontSize: '0.94rem', fontWeight: 800, color: '#0f172a' }}
+                  />
+                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b' }}>Sq.Ft</span>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                  Ceiling Center Height (Ft)
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid #cbd5e1', borderRadius: '8px', padding: '0 12px', background: '#ffffff' }}>
+                  <input
+                    type="number"
+                    placeholder="e.g. 32"
+                    value={formData.ceilingHeightFt}
+                    onChange={(e) => setFormData(prev => ({ ...prev, ceilingHeightFt: e.target.value }))}
+                    style={{ border: 'none', outline: 'none', width: '100%', height: '42px', fontSize: '0.9rem', color: '#0f172a' }}
+                  />
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b' }}>Ft</span>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                  Floor Load Capacity
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid #cbd5e1', borderRadius: '8px', padding: '0 12px', background: '#ffffff' }}>
+                  <input
+                    type="number"
+                    placeholder="e.g. 6"
+                    value={formData.floorLoadTon}
+                    onChange={(e) => setFormData(prev => ({ ...prev, floorLoadTon: e.target.value }))}
+                    style={{ border: 'none', outline: 'none', width: '100%', height: '42px', fontSize: '0.9rem', color: '#0f172a' }}
+                  />
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b' }}>Ton/sq.m</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Docks & Power */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '16px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                  Loading Docks Count
+                </label>
+                <input
+                  type="number"
+                  placeholder="e.g. 4"
+                  value={formData.loadingDocks}
+                  onChange={(e) => setFormData(prev => ({ ...prev, loadingDocks: e.target.value }))}
+                  style={{ width: '100%', height: '44px', padding: '0 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '0.88rem', background: '#ffffff', color: '#0f172a', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                  Power Sanctioned (kVA)
+                </label>
+                <input
+                  type="number"
+                  placeholder="e.g. 100"
+                  value={formData.powerKva}
+                  onChange={(e) => setFormData(prev => ({ ...prev, powerKva: e.target.value }))}
+                  style={{ width: '100%', height: '44px', padding: '0 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '0.88rem', background: '#ffffff', color: '#0f172a', boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                  Road Access Width (Ft)
+                </label>
+                <input
+                  type="number"
+                  placeholder="e.g. 60"
+                  value={formData.roadWidthFt}
+                  onChange={(e) => setFormData(prev => ({ ...prev, roadWidthFt: e.target.value }))}
+                  style={{ width: '100%', height: '44px', padding: '0 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '0.88rem', background: '#ffffff', color: '#0f172a', boxSizing: 'border-box' }}
+                />
+              </div>
+            </div>
+
+            {/* Feature Badges Selection */}
+            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '12px 14px', marginBottom: '16px' }}>
+              <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#0f2744', marginBottom: '8px' }}>
+                Warehouse Compliance & Infrastructure Highlights:
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#ecfdf5', color: '#065f46', padding: '4px 10px', borderRadius: '6px', fontSize: '0.76rem', fontWeight: 700 }}>
+                  <Check size={13} /> Fire NOC & Hydrants
+                </span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#ecfdf5', color: '#065f46', padding: '4px 10px', borderRadius: '6px', fontSize: '0.76rem', fontWeight: 700 }}>
+                  <Check size={13} /> 40-Ft Container Turning Radius
+                </span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#ecfdf5', color: '#065f46', padding: '4px 10px', borderRadius: '6px', fontSize: '0.76rem', fontWeight: 700 }}>
+                  <Check size={13} /> FM2 Laser Screed Floor
+                </span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#ecfdf5', color: '#065f46', padding: '4px 10px', borderRadius: '6px', fontSize: '0.76rem', fontWeight: 700 }}>
+                  <Check size={13} /> 100% DG Power Backup
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================
+            STEP 4: COMMERCIAL TERMS & AUTO-CALCULATOR
+            ======================================================== */}
+        {currentStep === 4 && (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+              <div style={{ width: 32, height: 32, borderRadius: '8px', background: '#fee2e2', color: '#e11d48', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <IndianRupee size={18} />
+              </div>
+              <h3 style={{ fontSize: '1.18rem', fontWeight: 900, color: '#0f2744', margin: 0 }}>
+                Step 4: Commercial Pricing & Yield Calculations
+              </h3>
+            </div>
+
+            {/* Rate Input */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px', marginBottom: '16px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                  {formData.dealType === 'RENT' ? 'Expected Rent (₹ / Sq.Ft / Month)' : 'Expected Outright Rate (₹ / Sq.Ft)'} <span style={{ color: '#e11d48' }}>*</span>
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid #0f2744', borderRadius: '8px', padding: '0 12px', background: '#ffffff', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                  <span style={{ fontWeight: 800, color: '#0f2744', marginRight: '6px' }}>₹</span>
+                  <input
+                    type="number"
+                    placeholder={formData.dealType === 'RENT' ? 'e.g. 28' : 'e.g. 3500'}
+                    value={formData.ratePsf}
+                    onChange={(e) => setFormData(prev => ({ ...prev, ratePsf: e.target.value }))}
+                    style={{ border: 'none', outline: 'none', width: '100%', height: '44px', fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}
+                  />
+                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b' }}>
+                    {formData.dealType === 'RENT' ? '/sq ft/mo' : '/sq ft'}
+                  </span>
+                </div>
+              </div>
+
+              {formData.dealType === 'RENT' && (
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                    Security Deposit (Months of Rent)
+                  </label>
+                  <select
+                    value={formData.depositMonths}
+                    onChange={(e) => setFormData(prev => ({ ...prev, depositMonths: e.target.value }))}
+                    style={{ width: '100%', height: '44px', padding: '0 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '0.88rem', background: '#f8fafc', fontWeight: 600, color: '#0f172a' }}
+                  >
+                    {[3, 4, 6, 9, 12].map(m => (
+                      <option key={m} value={m}>{m} Months Security Deposit</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            {/* LIVE AUTOMATED CALCULATOR SUMMARY BOX */}
+            <div style={{ background: 'linear-gradient(135deg, #0f2744 0%, #1e3a5f 100%)', color: '#ffffff', borderRadius: '12px', padding: '16px 20px', marginBottom: '18px', boxShadow: '0 6px 20px rgba(15,39,68,0.2)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.76rem', color: '#93c5fd', fontWeight: 800, textTransform: 'uppercase', marginBottom: '10px' }}>
+                <Calculator size={15} />
+                <span>Live Automated Commercial Valuation</span>
+              </div>
+
+              {formData.dealType === 'RENT' ? (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '14px' }}>
+                  <div>
+                    <div style={{ fontSize: '0.72rem', color: '#cbd5e1' }}>Calculated Monthly Rent</div>
+                    <div style={{ fontSize: '1.35rem', fontWeight: 900, color: '#38bdf8' }}>
+                      {formatIndianCurrency(monthlyRent)}
+                      <span style={{ fontSize: '0.75rem', color: '#cbd5e1', fontWeight: 600 }}>/mo</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: '0.72rem', color: '#cbd5e1' }}>Annual Lease Value</div>
+                    <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#ffffff' }}>
+                      {formatIndianCurrency(annualRent)}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: '0.72rem', color: '#cbd5e1' }}>Required Deposit ({formData.depositMonths} mo)</div>
+                    <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#fbbf24' }}>
+                      {formatIndianCurrency(depositAmount)}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div style={{ fontSize: '0.72rem', color: '#cbd5e1' }}>Total Outright Property Valuation</div>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#38bdf8' }}>
+                    {formatIndianCurrency(outrightPrice)}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Lease Terms */}
+            {formData.dealType === 'RENT' && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                    Lock-In Period (Months)
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="36"
+                    value={formData.lockInMonths}
+                    onChange={(e) => setFormData(prev => ({ ...prev, lockInMonths: e.target.value }))}
+                    style={{ width: '100%', height: '42px', padding: '0 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '0.88rem', background: '#ffffff', color: '#0f172a', boxSizing: 'border-box' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                    Annual Escalation (%)
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="5"
+                    value={formData.escalationPercent}
+                    onChange={(e) => setFormData(prev => ({ ...prev, escalationPercent: e.target.value }))}
+                    style={{ width: '100%', height: '42px', padding: '0 12px', borderRadius: '8px', border: '1.5px solid #cbd5e1', fontSize: '0.88rem', background: '#ffffff', color: '#0f172a', boxSizing: 'border-box' }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ========================================================
+            STEP 5: MEDIA, VERIFIED CONTACT & SUBMIT
+            ======================================================== */}
+        {currentStep === 5 && (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+              <div style={{ width: 32, height: 32, borderRadius: '8px', background: '#fee2e2', color: '#e11d48', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Camera size={18} />
+              </div>
+              <h3 style={{ fontSize: '1.18rem', fontWeight: 900, color: '#0f2744', margin: 0 }}>
+                Step 5: Verified Contact Details & Final Review
+              </h3>
+            </div>
+
+            {/* Contact Details */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginBottom: '16px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                  Contact Name / Company <span style={{ color: '#e11d48' }}>*</span>
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid #cbd5e1', borderRadius: '8px', padding: '0 10px', background: '#ffffff' }}>
+                  <User size={15} color="#94a3b8" style={{ marginRight: '6px', flexShrink: 0 }} />
+                  <input
+                    type="text"
+                    placeholder="e.g. Ramesh Logix Properties"
+                    value={formData.poster_name}
+                    onChange={(e) => setFormData(prev => ({ ...prev, poster_name: e.target.value }))}
+                    style={{ border: 'none', outline: 'none', width: '100%', height: '42px', fontSize: '0.88rem', color: '#0f172a' }}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                  Direct Mobile Phone <span style={{ color: '#e11d48' }}>*</span>
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid #cbd5e1', borderRadius: '8px', padding: '0 10px', background: '#ffffff' }}>
+                  <Phone size={15} color="#94a3b8" style={{ marginRight: '6px', flexShrink: 0 }} />
+                  <input
+                    type="tel"
+                    placeholder="+91 98840 12341"
+                    value={formData.poster_phone}
+                    onChange={(e) => setFormData(prev => ({ ...prev, poster_phone: e.target.value }))}
+                    style={{ border: 'none', outline: 'none', width: '100%', height: '42px', fontSize: '0.88rem', color: '#0f172a' }}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>
+                  Official Email Address
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid #cbd5e1', borderRadius: '8px', padding: '0 10px', background: '#ffffff' }}>
+                  <Mail size={15} color="#94a3b8" style={{ marginRight: '6px', flexShrink: 0 }} />
+                  <input
+                    type="email"
+                    placeholder="owner@warehouse.in"
+                    value={formData.poster_email}
+                    onChange={(e) => setFormData(prev => ({ ...prev, poster_email: e.target.value }))}
+                    style={{ border: 'none', outline: 'none', width: '100%', height: '42px', fontSize: '0.88rem', color: '#0f172a' }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* LIVE PREVIEW SUMMARY CARD */}
+            <div style={{ background: '#f8fafc', border: '1.5px solid #e2e8f0', borderRadius: '12px', padding: '16px', marginBottom: '18px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', fontWeight: 800, color: '#0f2744', textTransform: 'uppercase', marginBottom: '8px' }}>
+                <Eye size={15} color="#e11d48" />
+                <span>Live Listing Preview Summary:</span>
+              </div>
+
+              <div style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a' }}>
+                {formData.title || `${formData.totalArea} Sq.Ft ${formData.subType} in ${formData.locality}, ${formData.city}`}
+              </div>
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '8px', fontSize: '0.8rem', color: '#475569' }}>
+                <span>📍 {formData.locality}, {formData.city}</span>
+                <span>•</span>
+                <span>📐 {Number(formData.totalArea).toLocaleString('en-IN')} Sq.Ft</span>
+                <span>•</span>
+                <span style={{ fontWeight: 800, color: '#e11d48' }}>
+                  {formData.dealType === 'RENT' ? `₹${formData.ratePsf}/sq ft/mo (${formatIndianCurrency(monthlyRent)}/mo)` : formatIndianCurrency(outrightPrice)}
+                </span>
+                <span>•</span>
+                <span>🏗️ {formData.ceilingHeightFt} Ft Height • {formData.loadingDocks} Docks</span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.76rem', color: '#059669', fontWeight: 700, marginBottom: '8px' }}>
+              <ShieldCheck size={16} />
+              <span>Direct Verification: 100% Free Listing with verified buyer match dispatch.</span>
+            </div>
+          </div>
+        )}
+
+        {/* Navigation & Action Buttons */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px', paddingTop: '16px', borderTop: '1px solid #f1f5f9' }}>
+          {currentStep > 1 ? (
+            <button
+              type="button"
+              onClick={handleBack}
+              style={{
+                padding: '10px 18px',
+                background: '#f1f5f9',
+                border: '1px solid #cbd5e1',
+                borderRadius: '8px',
+                color: '#334155',
+                fontWeight: 700,
+                fontSize: '0.86rem',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <ArrowLeft size={16} />
+              <span>Previous Step</span>
+            </button>
+          ) : (
+            <button
+              type="button"
               onClick={onCancel}
-              className="btn btn-outline btn-sm"
+              style={{
+                padding: '10px 18px',
+                background: 'transparent',
+                border: 'none',
+                color: '#64748b',
+                fontWeight: 600,
+                fontSize: '0.86rem',
+                cursor: 'pointer'
+              }}
             >
               Cancel
             </button>
           )}
+
+          <button
+            type="button"
+            onClick={handleNext}
+            disabled={isSubmitting}
+            style={{
+              padding: '12px 24px',
+              background: currentStep === 5 ? 'linear-gradient(135deg, #059669 0%, #047857 100%)' : 'linear-gradient(135deg, #e11d48 0%, #be123c 100%)',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '8px',
+              fontWeight: 800,
+              fontSize: '0.9rem',
+              cursor: isSubmitting ? 'not-allowed' : 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              boxShadow: currentStep === 5 ? '0 4px 14px rgba(5,150,105,0.35)' : '0 4px 14px rgba(225,29,72,0.35)',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            {isSubmitting ? (
+              <span>Publishing Listing...</span>
+            ) : currentStep === 5 ? (
+              <>
+                <span>Publish Listing (FREE)</span>
+                <Check size={18} />
+              </>
+            ) : (
+              <>
+                <span>Continue to Step {currentStep + 1}</span>
+                <ArrowRight size={16} />
+              </>
+            )}
+          </button>
         </div>
 
-        {/* Progress Bar */}
-        <div className="mp-progress-bar-wrap">
-          <div className="mp-progress-fill" style={{ width: `${progressPercent}%` }} />
-        </div>
-
-        {/* Step Indicators */}
-        <div className="mp-wizard-steps-nav">
-          <div className={`mp-step-indicator ${currentStep === 1 ? 'active' : currentStep > 1 ? 'done' : ''}`}>
-            <span className="mp-step-number">1</span>
-            <span className="desktop-only">Basic Info</span>
-          </div>
-          <div className={`mp-step-indicator ${currentStep === 2 ? 'active' : currentStep > 2 ? 'done' : ''}`}>
-            <span className="mp-step-number">2</span>
-            <span className="desktop-only">Specs & Photos</span>
-          </div>
-          <div className={`mp-step-indicator ${currentStep === 3 ? 'active' : currentStep > 3 ? 'done' : ''}`}>
-            <span className="mp-step-number">3</span>
-            <span className="desktop-only">Price & Terms</span>
-          </div>
-          <div className={`mp-step-indicator ${currentStep === 4 ? 'active' : ''}`}>
-            <span className="mp-step-number">4</span>
-            <span className="desktop-only">Contact & OTP</span>
-          </div>
-        </div>
-
-        {errorMsg && (
-          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: '10px 14px', borderRadius: '6px', fontSize: '0.86rem', marginBottom: '18px' }}>
-            {errorMsg}
-          </div>
-        )}
-
-        {/* STEP 1: Basic Information */}
-        {currentStep === 1 && (
-          <div>
-            <div style={{ marginBottom: '16px' }}>
-              <label className="mp-field-label">Purpose of Listing</label>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                {['rent', 'lease', 'sale'].map((p) => (
-                  <button 
-                    key={p}
-                    type="button"
-                    className={`btn flex-1 ${formData.purpose === p ? 'btn-red' : 'btn-outline'}`}
-                    onClick={() => setFormData({ ...formData, purpose: p })}
-                    style={{ textTransform: 'capitalize' }}
-                  >
-                    {p === 'rent' ? 'For Rent' : p === 'lease' ? 'Long Lease' : 'For Sale'}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div style={{ marginBottom: '14px' }}>
-              <label className="mp-field-label">Property Title / Headline</label>
-              <input 
-                type="text"
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                placeholder="e.g. Modern 50,000 Sq.Ft. Pre-Engineered Shed near NH-48"
-                className="form-control w-full"
-                required
-              />
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
-              <div>
-                <label className="mp-field-label">Property Type</label>
-                <select 
-                  value={formData.type}
-                  onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                  className="form-control w-full"
-                >
-                  {PROPERTY_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </div>
-
-              <div>
-                <label className="mp-field-label">City / Region</label>
-                <select 
-                  value={formData.city}
-                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                  className="form-control w-full"
-                >
-                  {CITIES_LIST.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-            </div>
-
-            <div style={{ marginBottom: '20px' }}>
-              <label className="mp-field-label">Locality / Industrial Area</label>
-              <input 
-                type="text"
-                value={formData.locality}
-                onChange={(e) => setFormData({ ...formData, locality: e.target.value })}
-                placeholder="e.g. Sriperumbudur / Bhiwandi / Chakan"
-                className="form-control w-full"
-                required
-              />
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button type="button" className="btn btn-red" onClick={handleNextStep}>
-                <span>Next: Specs & Photos</span>
-                <ArrowRight size={16} />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* STEP 2: Details and Photos */}
-        {currentStep === 2 && (
-          <div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
-              <div>
-                <label className="mp-field-label">Total Space Area (Sq.Ft.) *</label>
-                <input 
-                  type="number"
-                  value={formData.area_sqft}
-                  onChange={(e) => setFormData({ ...formData, area_sqft: e.target.value })}
-                  placeholder="e.g. 45000"
-                  className="form-control w-full"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="mp-field-label">Clear Height</label>
-                <input 
-                  type="text"
-                  value={formData.clear_height}
-                  onChange={(e) => setFormData({ ...formData, clear_height: e.target.value })}
-                  placeholder="e.g. 36 Ft"
-                  className="form-control w-full"
-                />
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '16px' }}>
-              <div>
-                <label className="mp-field-label">Number of Docks</label>
-                <input 
-                  type="number"
-                  value={formData.docks}
-                  onChange={(e) => setFormData({ ...formData, docks: e.target.value })}
-                  placeholder="e.g. 6"
-                  className="form-control w-full"
-                />
-              </div>
-
-              <div>
-                <label className="mp-field-label">Power Backup / Substation</label>
-                <input 
-                  type="text"
-                  value={formData.power_backup}
-                  onChange={(e) => setFormData({ ...formData, power_backup: e.target.value })}
-                  placeholder="e.g. 150 kVA DG"
-                  className="form-control w-full"
-                />
-              </div>
-            </div>
-
-            {/* Photo URL */}
-            <div style={{ marginBottom: '16px' }}>
-              <label className="mp-field-label">Property Photo Link / URL</label>
-              <input 
-                type="url"
-                value={formData.imageUrl}
-                onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
-                placeholder="https://example.com/warehouse.jpg (or leave empty for verified stock)"
-                className="form-control w-full"
-              />
-            </div>
-
-            {/* Features Checkboxes */}
-            <div style={{ marginBottom: '20px' }}>
-              <label className="mp-field-label">Infrastructure Highlights</label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                {availableFeatures.map((feat) => (
-                  <label key={feat} className="mp-checkbox-label">
-                    <input 
-                      type="checkbox"
-                      checked={formData.features.includes(feat)}
-                      onChange={() => handleFeatureToggle(feat)}
-                    />
-                    <span>{feat}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <button type="button" className="btn btn-outline" onClick={() => setCurrentStep(1)}>
-                <ArrowLeft size={16} /> Back
-              </button>
-              <button type="button" className="btn btn-red" onClick={handleNextStep}>
-                <span>Next: Price & Terms</span>
-                <ArrowRight size={16} />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* STEP 3: Price and Availability */}
-        {currentStep === 3 && (
-          <div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
-              <div>
-                <label className="mp-field-label">
-                  {formData.purpose === 'sale' ? 'Outright Rate (₹ / Sq.Ft.)' : 'Expected Rent (₹ / Sq.Ft. / Month)'} *
-                </label>
-                <input 
-                  type="number"
-                  value={formData.price_or_rent_psf}
-                  onChange={(e) => setFormData({ ...formData, price_or_rent_psf: e.target.value })}
-                  placeholder="e.g. 28"
-                  className="form-control w-full"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="mp-field-label">Security Deposit</label>
-                <input 
-                  type="text"
-                  value={formData.deposit}
-                  onChange={(e) => setFormData({ ...formData, deposit: e.target.value })}
-                  placeholder="e.g. 6 Months"
-                  className="form-control w-full"
-                />
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
-              <div>
-                <label className="mp-field-label">Status</label>
-                <select 
-                  value={formData.status}
-                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                  className="form-control w-full"
-                >
-                  <option value="Ready to Move">Ready to Move</option>
-                  <option value="Build-to-Suit">Build-to-Suit</option>
-                  <option value="Under Construction">Under Construction</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="mp-field-label">Availability</label>
-                <input 
-                  type="text"
-                  value={formData.availability}
-                  onChange={(e) => setFormData({ ...formData, availability: e.target.value })}
-                  placeholder="e.g. Immediate / 30 Days"
-                  className="form-control w-full"
-                />
-              </div>
-            </div>
-
-            <div style={{ marginBottom: '20px' }}>
-              <label className="mp-field-label">Description / Special Highlights</label>
-              <textarea 
-                rows="3"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Mention container turning radius, fire NOC, clear title, highway access..."
-                className="form-control w-full"
-              />
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <button type="button" className="btn btn-outline" onClick={() => setCurrentStep(2)}>
-                <ArrowLeft size={16} /> Back
-              </button>
-              <button type="button" className="btn btn-red" onClick={handleNextStep}>
-                <span>Next: Owner Contact</span>
-                <ArrowRight size={16} />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* STEP 4: Contact & OTP Verification */}
-        {currentStep === 4 && (
-          <div>
-            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '14px', marginBottom: '16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', fontWeight: 700, color: '#004953' }}>
-                <ShieldCheck size={18} />
-                <span>Verified Direct Owner Listing</span>
-              </div>
-              <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: '#64748b' }}>
-                Your contact details will only be shared with verified industrial tenants.
-              </p>
-            </div>
-
-            <div style={{ marginBottom: '14px' }}>
-              <label className="mp-field-label">Owner / Company Name *</label>
-              <input 
-                type="text"
-                value={formData.owner_name}
-                onChange={(e) => setFormData({ ...formData, owner_name: e.target.value })}
-                placeholder="e.g. Rajesh Sharma / ABC Logistics Parks"
-                className="form-control w-full"
-                required
-              />
-            </div>
-
-            <div style={{ marginBottom: '16px' }}>
-              <label className="mp-field-label">Mobile Number *</label>
-              <input 
-                type="tel"
-                value={formData.owner_phone}
-                onChange={(e) => setFormData({ ...formData, owner_phone: e.target.value })}
-                placeholder="10-digit phone number"
-                className="form-control w-full"
-                maxLength="10"
-                required
-              />
-            </div>
-
-            <div style={{ marginBottom: '20px' }}>
-              <label className="mp-field-label">Verification OTP (Demo Code: 1234)</label>
-              <input 
-                type="text"
-                value={formData.otp}
-                onChange={(e) => setFormData({ ...formData, otp: e.target.value })}
-                placeholder="Enter 4-digit code"
-                className="form-control w-full"
-                maxLength="4"
-              />
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <button type="button" className="btn btn-outline" onClick={() => setCurrentStep(3)}>
-                <ArrowLeft size={16} /> Back
-              </button>
-              <button 
-                type="button" 
-                className="btn btn-red"
-                disabled={isSubmitting}
-                onClick={handleFinalSubmit}
-                style={{ fontWeight: 700 }}
-              >
-                {isSubmitting ? 'Submitting Property...' : 'Submit for Free Listing'}
-              </button>
-            </div>
-          </div>
-        )}
       </div>
+
     </div>
   );
 }

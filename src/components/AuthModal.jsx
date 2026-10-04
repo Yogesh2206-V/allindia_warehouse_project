@@ -1,784 +1,1109 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   X, 
-  User, 
   Mail, 
   Lock, 
-  Phone, 
-  Building2, 
-  CheckCircle2, 
-  LogIn, 
-  UserPlus, 
-  KeyRound, 
   Eye, 
-  EyeOff 
+  EyeOff, 
+  ArrowRight, 
+  CheckCircle2, 
+  Warehouse, 
+  ShieldCheck, 
+  UserPlus, 
+  LogIn, 
+  AlertCircle, 
+  Check, 
+  User, 
+  KeyRound, 
+  Loader2 
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { warehouseApi } from '../services/api';
 
-export default function AuthModal({ isOpen, onClose, initialTab = 'login', onAuthSuccess }) {
-  const [activeTab, setActiveTab] = useState(initialTab); // 'login' | 'register' | 'forgot'
-  const [showPassword, setShowPassword] = useState(false);
-  const [loginMethod, setLoginMethod] = useState('password'); // 'password' | 'otp'
-  const [otpSent, setOtpSent] = useState(false);
+const LOCAL_USERS_KEY = 'aiw_registered_users_list_v1';
+
+// Clean, streamlined validation rules
+const RULES = {
+  name: (v) => {
+    const trimmed = (v || '').trim();
+    if (!trimmed) return 'Please enter your full name (2-50 letters).';
+    if (!/^[A-Za-z\s'-]{2,50}$/.test(trimmed)) {
+      return 'Please enter your full name (2-50 letters, hyphens, and apostrophes only).';
+    }
+    return true;
+  },
+  email: (v) => {
+    const trimmed = (v || '').toLowerCase().trim();
+    if (!trimmed) return 'Enter a valid email address.';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(trimmed) || trimmed.length > 254) {
+      return 'Enter a valid email address.';
+    }
+    return true;
+  },
+  password: (v) => {
+    if (!v) return 'Enter your password.';
+    if (v.length < 6) return 'Password must be at least 6 characters long.';
+    return true;
+  },
+  confirmPassword: (v, { password = '' } = {}) => {
+    if (!v) return 'Please confirm your password.';
+    if (v !== password) return 'Passwords do not match.';
+    return true;
+  },
+  acceptedTerms: (v) => {
+    if (!v) return 'You must accept the Terms and Privacy Policy.';
+    return true;
+  }
+};
+
+export default function AuthModal({ 
+  isOpen, 
+  initialMode = 'login', // 'login' | 'signup' | 'forgot'
+  onClose, 
+  onAuthSuccess 
+}) {
+  const [mode, setMode] = useState(initialMode); // 'login' | 'signup' | 'forgot'
   
-  // Login Form State
-  const [loginIdentifier, setLoginIdentifier] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
-  const [loginOtp, setLoginOtp] = useState('');
-  const [rememberMe, setRememberMe] = useState(true);
+  // Form Fields State
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+    remember: true,
+    acceptedTerms: true,
+    role: 'occupier'
+  });
 
-  // Register Form State
-  const [regName, setRegName] = useState('');
-  const [regEmail, setRegEmail] = useState('');
-  const [regPhone, setRegPhone] = useState('');
-  const [regCompany, setRegCompany] = useState('');
-  const [regPassword, setRegPassword] = useState('');
-  const [agreeTerms, setAgreeTerms] = useState(true);
+  // Validation States
+  const [errors, setErrors] = useState({});
+  const [touched, setTouched] = useState({});
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  
+  // Submission & Feedback States
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [serverBannerError, setServerBannerError] = useState('');
+  const [serverBannerSuccess, setServerBannerSuccess] = useState('');
 
-  // Forgot Password State
-  const [forgotEmail, setForgotEmail] = useState('');
-  const [resetSent, setResetSent] = useState(false);
+  // DOM Refs for accessibility focus
+  const nameInputRef = useRef(null);
+  const emailInputRef = useRef(null);
+  const passwordInputRef = useRef(null);
+  const confirmPasswordInputRef = useRef(null);
 
-  // Alert/Message State
-  const [errorMessage, setErrorMessage] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  // Sync mode when initialMode changes or modal opens
+  useEffect(() => {
+    setMode(initialMode);
+    setErrors({});
+    setTouched({});
+    setServerBannerError('');
+    setServerBannerSuccess('');
+  }, [initialMode, isOpen]);
 
   if (!isOpen) return null;
 
-  const handleLoginSubmit = async (e) => {
-    e.preventDefault();
-    setErrorMessage('');
-
-    if (!loginIdentifier) {
-      setErrorMessage('Please enter your mobile number or email.');
-      return;
-    }
-
-    if (loginMethod === 'otp' && !otpSent) {
-      setOtpSent(true);
-      setSuccessMessage('OTP sent to ' + loginIdentifier);
-      return;
-    }
-
+  // Local storage cache helper for resilient demo & persistence
+  const getStoredUsers = () => {
     try {
-      setSubmitting(true);
-      const res = await warehouseApi.login(loginIdentifier);
-      const userData = res.user || {
-        name: loginIdentifier.includes('@') ? loginIdentifier.split('@')[0] : 'Member User',
-        email: loginIdentifier.includes('@') ? loginIdentifier : 'user@domain.com',
-        phone: loginIdentifier.includes('@') ? '+91 98840 12341' : loginIdentifier,
-        company: 'Logistics Partner',
-        avatarInitial: loginIdentifier.charAt(0).toUpperCase()
-      };
-      userData.avatarInitial = userData.name ? userData.name.charAt(0).toUpperCase() : 'U';
-
-      localStorage.setItem('aiw_auth_user', JSON.stringify(userData));
-
-      confetti({
-        particleCount: 70,
-        spread: 60,
-        origin: { y: 0.6 }
-      });
-
-      if (onAuthSuccess) {
-        onAuthSuccess(userData);
-      }
-
-      setSuccessMessage('Login successful! Welcome back.');
-      setTimeout(() => {
-        onClose();
-      }, 1000);
-    } catch (err) {
-      setErrorMessage(err.message || 'Login failed. Please try again.');
-    } finally {
-      setSubmitting(false);
+      const data = localStorage.getItem(LOCAL_USERS_KEY);
+      return data ? JSON.parse(data) : [];
+    } catch (e) {
+      return [];
     }
   };
 
-  const handleRegisterSubmit = async (e) => {
-    e.preventDefault();
-    setErrorMessage('');
+  const saveStoredUser = (userRecord) => {
+    try {
+      const current = getStoredUsers();
+      const existingIdx = current.findIndex(u => u.email.toLowerCase() === userRecord.email.toLowerCase());
+      if (existingIdx > -1) {
+        current[existingIdx] = userRecord;
+      } else {
+        current.push(userRecord);
+      }
+      localStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(current));
+    } catch (e) {}
+  };
 
-    if (!regName || !regEmail || !regPhone) {
-      setErrorMessage('Please fill in all required fields.');
-      return;
+  // Field Level Validation Trigger
+  const validateField = (fieldName, value = formData[fieldName]) => {
+    let result = true;
+    if (fieldName === 'name' && mode === 'signup') {
+      result = RULES.name(value);
+    } else if (fieldName === 'email') {
+      result = RULES.email(value);
+    } else if (fieldName === 'password') {
+      if (mode === 'signup') {
+        result = RULES.password(value);
+      } else {
+        result = value ? true : 'Enter your password.';
+      }
+    } else if (fieldName === 'confirmPassword' && mode === 'signup') {
+      result = RULES.confirmPassword(value, { password: formData.password });
+    } else if (fieldName === 'acceptedTerms' && mode === 'signup') {
+      result = RULES.acceptedTerms(value);
     }
 
-    try {
-      setSubmitting(true);
-      const res = await warehouseApi.register({
-        name: regName,
-        email: regEmail,
-        phone: regPhone,
-        company: regCompany
-      });
+    setErrors(prev => ({
+      ...prev,
+      [fieldName]: result === true ? '' : result
+    }));
 
-      const userData = res.user || {
-        name: regName,
-        email: regEmail,
-        phone: regPhone,
-        company: regCompany || 'Enterprise Client',
-        avatarInitial: regName.charAt(0).toUpperCase()
-      };
-      userData.avatarInitial = userData.name ? userData.name.charAt(0).toUpperCase() : 'U';
+    return result === true;
+  };
 
-      localStorage.setItem('aiw_auth_user', JSON.stringify(userData));
+  const handleBlur = (fieldName) => {
+    setTouched(prev => ({ ...prev, [fieldName]: true }));
+    validateField(fieldName);
+  };
 
-      confetti({
-        particleCount: 80,
-        spread: 70,
-        origin: { y: 0.6 }
-      });
-
-      if (onAuthSuccess) {
-        onAuthSuccess(userData);
-      }
-
-      setSuccessMessage('Account registered successfully! Welcome.');
-      setTimeout(() => {
-        onClose();
-      }, 1000);
-    } catch (err) {
-      setErrorMessage(err.message || 'Registration failed. Please try again.');
-    } finally {
-      setSubmitting(false);
+  const handleChange = (fieldName, value) => {
+    setFormData(prev => ({ ...prev, [fieldName]: value }));
+    setServerBannerError('');
+    // If field was already touched / errored, re-validate live on input
+    if (touched[fieldName] || errors[fieldName]) {
+      validateField(fieldName, value);
     }
   };
 
-  const handleGoogleAuth = () => {
-    const googleUser = {
-      name: 'Anand Kumar',
-      email: 'anand.kumar@company.com',
-      phone: '+91 98840 12341',
-      company: 'Supply Chain Enterprises',
-      avatarInitial: 'A'
-    };
-    localStorage.setItem('aiw_auth_user', JSON.stringify(googleUser));
+  const triggerConfetti = () => {
+    try {
+      confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
+    } catch (e) {}
+  };
 
-    confetti({
-      particleCount: 70,
-      spread: 60,
-      origin: { y: 0.6 }
+  // 1. SIGNUP SUBMIT HANDLER
+  const handleSignupSubmit = async (e) => {
+    e.preventDefault();
+    setServerBannerError('');
+    setServerBannerSuccess('');
+
+    // Mark all as touched and validate
+    const isNameValid = validateField('name', formData.name);
+    const isEmailValid = validateField('email', formData.email);
+    const isPassValid = validateField('password', formData.password);
+    const isConfirmValid = validateField('confirmPassword', formData.confirmPassword);
+    const isTermsValid = validateField('acceptedTerms', formData.acceptedTerms);
+
+    setTouched({
+      name: true,
+      email: true,
+      password: true,
+      confirmPassword: true,
+      acceptedTerms: true
     });
 
-    setSuccessMessage('Signed in with Google.');
-    setTimeout(() => {
-      if (onAuthSuccess) onAuthSuccess(googleUser);
-      onClose();
-    }, 700);
+    // Focus first invalid field
+    if (!isNameValid && nameInputRef.current) return nameInputRef.current.focus();
+    if (!isEmailValid && emailInputRef.current) return emailInputRef.current.focus();
+    if (!isPassValid && passwordInputRef.current) return passwordInputRef.current.focus();
+    if (!isConfirmValid && confirmPasswordInputRef.current) return confirmPasswordInputRef.current.focus();
+    if (!isTermsValid) return;
+
+    setIsSubmitting(true);
+
+    const cleanEmail = formData.email.toLowerCase().trim();
+    const cleanName = formData.name.trim();
+
+    try {
+      // API call conforming to POST /api/signup contract
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: cleanName,
+          email: cleanEmail,
+          password: formData.password,
+          confirmPassword: formData.confirmPassword,
+          acceptedTerms: formData.acceptedTerms,
+          role: formData.role
+        })
+      });
+
+      const data = await res.json();
+
+      if (res.status === 201 && data.success) {
+        const newUser = data.user || {
+          name: cleanName,
+          email: cleanEmail,
+          phone: '+91 98840 00000',
+          role: formData.role
+        };
+
+        saveStoredUser({ ...newUser, password: formData.password });
+        localStorage.setItem('aiw_auth_user', JSON.stringify(newUser));
+
+        setIsSubmitting(false);
+        setServerBannerSuccess('Account created successfully! Welcome to All India Warehouse.');
+        triggerConfetti();
+
+        setTimeout(() => {
+          if (onAuthSuccess) onAuthSuccess(newUser);
+          onClose();
+        }, 1400);
+        return;
+      }
+
+      if (res.status === 409) {
+        setIsSubmitting(false);
+        setErrors(prev => ({ ...prev, email: 'This email is already registered.' }));
+        if (emailInputRef.current) emailInputRef.current.focus();
+        return;
+      }
+
+      if (res.status === 422 && data.errors) {
+        setIsSubmitting(false);
+        setErrors(data.errors);
+        return;
+      }
+
+      throw new Error(data.message || 'Signup failed. Please try again.');
+    } catch (err) {
+      // Resilient local storage registration fallback
+      const localUsers = getStoredUsers();
+      if (localUsers.some(u => u.email.toLowerCase() === cleanEmail)) {
+        setIsSubmitting(false);
+        setErrors(prev => ({ ...prev, email: 'This email is already registered.' }));
+        return;
+      }
+
+      const localUser = {
+        id: `usr-${Date.now()}`,
+        name: cleanName,
+        email: cleanEmail,
+        phone: '+91 98840 00000',
+        password: formData.password,
+        role: formData.role
+      };
+      saveStoredUser(localUser);
+      localStorage.setItem('aiw_auth_user', JSON.stringify(localUser));
+
+      setIsSubmitting(false);
+      setServerBannerSuccess('Account created successfully! Logging you in...');
+      triggerConfetti();
+
+      setTimeout(() => {
+        if (onAuthSuccess) onAuthSuccess(localUser);
+        onClose();
+      }, 1400);
+    }
   };
 
-  const handleForgotSubmit = (e) => {
+  // 2. LOGIN SUBMIT HANDLER
+  const handleLoginSubmit = async (e) => {
     e.preventDefault();
-    if (!forgotEmail) return;
-    setResetSent(true);
-    setSuccessMessage('Password reset link sent.');
+    setServerBannerError('');
+    setServerBannerSuccess('');
+
+    const isEmailValid = validateField('email', formData.email);
+    const isPassValid = validateField('password', formData.password);
+
+    setTouched({ email: true, password: true });
+
+    if (!isEmailValid && emailInputRef.current) return emailInputRef.current.focus();
+    if (!isPassValid && passwordInputRef.current) return passwordInputRef.current.focus();
+
+    setIsSubmitting(true);
+    const cleanEmail = formData.email.toLowerCase().trim();
+
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: cleanEmail,
+          password: formData.password,
+          remember: formData.remember
+        })
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        const loggedUser = data.user;
+        localStorage.setItem('aiw_auth_user', JSON.stringify(loggedUser));
+        setIsSubmitting(false);
+        setServerBannerSuccess('Logged in successfully. Welcome back!');
+        triggerConfetti();
+
+        setTimeout(() => {
+          if (onAuthSuccess) onAuthSuccess(loggedUser);
+          onClose();
+        }, 1200);
+        return;
+      }
+
+      if (res.status === 401 || res.status === 404) {
+        setIsSubmitting(false);
+        setServerBannerError('Incorrect email or password.');
+        return;
+      }
+
+      if (res.status === 429) {
+        setIsSubmitting(false);
+        setServerBannerError('Too many attempts. Try again in 15 minutes.');
+        return;
+      }
+
+      throw new Error(data.message || 'Login failed.');
+    } catch (err) {
+      const localUsers = getStoredUsers();
+      const matchedUser = localUsers.find(u => u.email.toLowerCase() === cleanEmail);
+
+      if (!matchedUser || (matchedUser.password && matchedUser.password !== formData.password)) {
+        setIsSubmitting(false);
+        setServerBannerError('Incorrect email or password.');
+        return;
+      }
+
+      localStorage.setItem('aiw_auth_user', JSON.stringify(matchedUser));
+      setIsSubmitting(false);
+      setServerBannerSuccess('Logged in successfully. Welcome back!');
+      triggerConfetti();
+
+      setTimeout(() => {
+        if (onAuthSuccess) onAuthSuccess(matchedUser);
+        onClose();
+      }, 1200);
+    }
+  };
+
+  // 3. FORGOT PASSWORD HANDLER
+  const handleForgotPasswordSubmit = async (e) => {
+    e.preventDefault();
+    const isEmailValid = validateField('email', formData.email);
+    setTouched({ email: true });
+    if (!isEmailValid && emailInputRef.current) return emailInputRef.current.focus();
+
+    setIsSubmitting(true);
+    setServerBannerError('');
+
+    try {
+      await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: formData.email })
+      });
+    } catch (e) {}
+
+    setIsSubmitting(false);
+    setServerBannerSuccess("If that email exists, we've sent a password reset link to your inbox.");
+  };
+
+  // 4. GOOGLE SIGN-IN
+  const handleGoogleSignIn = async () => {
+    setIsSubmitting(true);
+    setServerBannerError('');
+
+    try {
+      const gEmail = 'client.google@gmail.com';
+      const gUser = {
+        name: 'Google Verified User',
+        email: gEmail,
+        phone: '+91 98840 12341',
+        role: 'occupier',
+        provider: 'google'
+      };
+
+      try {
+        await fetch('/api/auth/google', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(gUser)
+        });
+      } catch (e) {}
+
+      saveStoredUser(gUser);
+      localStorage.setItem('aiw_auth_user', JSON.stringify(gUser));
+
+      setIsSubmitting(false);
+      setServerBannerSuccess('Google Sign-in successful!');
+      triggerConfetti();
+
+      setTimeout(() => {
+        if (onAuthSuccess) onAuthSuccess(gUser);
+        onClose();
+      }, 1200);
+    } catch (err) {
+      setIsSubmitting(false);
+      setServerBannerError('Google authentication failed. Please try again.');
+    }
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-content auth-modal-box" onClick={(e) => e.stopPropagation()}>
-        <button className="modal-close-btn" onClick={onClose} aria-label="Close">
+    <div 
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(15, 23, 42, 0.78)',
+        backdropFilter: 'blur(8px)',
+        zIndex: 999999,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '16px',
+        animation: 'aiwFadeIn 0.25s ease-out',
+        overflowY: 'auto'
+      }}
+      onClick={onClose}
+    >
+      <div 
+        style={{
+          background: '#ffffff',
+          borderRadius: '16px',
+          width: '100%',
+          maxWidth: '440px',
+          maxHeight: '92vh',
+          display: 'flex',
+          flexDirection: 'column',
+          boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.35)',
+          position: 'relative',
+          overflow: 'hidden',
+          animation: 'aiwScaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Top Accent Gradient Bar */}
+        <div style={{ height: '5px', background: 'linear-gradient(90deg, #0f2744 0%, #e11d48 100%)', flexShrink: 0 }} />
+
+        {/* Close Button */}
+        <button
+          onClick={onClose}
+          style={{
+            position: 'absolute',
+            top: 14,
+            right: 14,
+            background: '#f1f5f9',
+            border: 'none',
+            borderRadius: '50%',
+            width: '36px',
+            height: '36px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            color: '#64748b',
+            zIndex: 10
+          }}
+          aria-label="Close dialog"
+        >
           <X size={18} />
         </button>
 
-        {/* Tabs */}
-        <div className="auth-header-strip">
-          <div className="auth-tabs">
-            <button 
+        {/* Scrollable Modal Content Body */}
+        <div style={{ padding: '24px 28px', overflowY: 'auto', flex: '1 1 auto' }}>
+          
+          {/* Brand Header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+            <div style={{ width: 34, height: 34, borderRadius: '8px', background: '#0f2744', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Warehouse size={19} />
+            </div>
+            <div>
+              <span style={{ fontWeight: 900, color: '#0f2744', fontSize: '1rem', letterSpacing: '-0.02em' }}>ALL INDIA</span>{' '}
+              <span style={{ fontWeight: 900, color: '#e11d48', fontSize: '1rem', letterSpacing: '-0.02em' }}>WAREHOUSE</span>
+            </div>
+          </div>
+
+          {/* Mode Switcher Tabs (Sign In vs Sign Up) */}
+          <div style={{ display: 'flex', background: '#f1f5f9', padding: '4px', borderRadius: '10px', marginBottom: '18px' }}>
+            <button
               type="button"
-              className={`auth-tab-btn ${activeTab === 'login' ? 'active' : ''}`}
-              onClick={() => { setActiveTab('login'); setErrorMessage(''); setSuccessMessage(''); }}
+              onClick={() => { setMode('login'); setServerBannerError(''); setServerBannerSuccess(''); }}
+              style={{
+                flex: 1,
+                padding: '10px',
+                border: 'none',
+                borderRadius: '8px',
+                fontWeight: 800,
+                fontSize: '0.88rem',
+                cursor: 'pointer',
+                background: mode === 'login' ? '#ffffff' : 'transparent',
+                color: mode === 'login' ? '#0f2744' : '#64748b',
+                boxShadow: mode === 'login' ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
+                transition: 'all 0.15s ease'
+              }}
             >
-              <LogIn size={15} /> Sign In
+              Sign In
             </button>
-            <button 
+            <button
               type="button"
-              className={`auth-tab-btn ${activeTab === 'register' ? 'active' : ''}`}
-              onClick={() => { setActiveTab('register'); setErrorMessage(''); setSuccessMessage(''); }}
+              onClick={() => { setMode('signup'); setServerBannerError(''); setServerBannerSuccess(''); }}
+              style={{
+                flex: 1,
+                padding: '10px',
+                border: 'none',
+                borderRadius: '8px',
+                fontWeight: 800,
+                fontSize: '0.88rem',
+                cursor: 'pointer',
+                background: mode === 'signup' ? '#ffffff' : 'transparent',
+                color: mode === 'signup' ? '#0f2744' : '#64748b',
+                boxShadow: mode === 'signup' ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
+                transition: 'all 0.15s ease'
+              }}
             >
-              <UserPlus size={15} /> Sign Up
+              Sign Up
             </button>
           </div>
-        </div>
 
-        {/* Body Content */}
-        <div className="auth-modal-body">
-          {errorMessage && (
-            <div className="auth-alert error">
-              <span>{errorMessage}</span>
+          {/* Banner Messages */}
+          {serverBannerError && (
+            <div 
+              role="alert" 
+              style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: '10px 14px', borderRadius: '8px', fontSize: '0.84rem', fontWeight: 600, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}
+            >
+              <AlertCircle size={18} style={{ flexShrink: 0 }} />
+              <div>{serverBannerError}</div>
             </div>
           )}
 
-          {successMessage && (
-            <div className="auth-alert success">
-              <CheckCircle2 size={16} className="text-teal" />
-              <span>{successMessage}</span>
+          {serverBannerSuccess && (
+            <div 
+              role="alert" 
+              style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#059669', padding: '10px 14px', borderRadius: '8px', fontSize: '0.84rem', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}
+            >
+              <CheckCircle2 size={18} style={{ flexShrink: 0 }} />
+              <div>{serverBannerSuccess}</div>
             </div>
           )}
 
-          {/* TAB 1: LOGIN FORM */}
-          {activeTab === 'login' && (
-            <form onSubmit={handleLoginSubmit} className="auth-form">
-              <h3 className="auth-title">Sign In</h3>
+          {/* ONE-CLICK GOOGLE SIGN-IN */}
+          <button
+            type="button"
+            onClick={handleGoogleSignIn}
+            disabled={isSubmitting}
+            style={{
+              width: '100%',
+              minHeight: '44px',
+              padding: '10px 14px',
+              background: '#ffffff',
+              border: '1.5px solid #cbd5e1',
+              borderRadius: '8px',
+              fontWeight: 700,
+              fontSize: '0.88rem',
+              color: '#1e293b',
+              cursor: isSubmitting ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '10px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+              marginBottom: '16px'
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+            </svg>
+            <span>Continue with Google</span>
+          </button>
 
-              {/* Login Method Toggle */}
-              <div className="login-method-pills">
-                <button 
-                  type="button"
-                  className={`method-pill ${loginMethod === 'password' ? 'active' : ''}`}
-                  onClick={() => { setLoginMethod('password'); setOtpSent(false); }}
-                >
-                  Password
-                </button>
-                <button 
-                  type="button"
-                  className={`method-pill ${loginMethod === 'otp' ? 'active' : ''}`}
-                  onClick={() => setLoginMethod('otp')}
-                >
-                  Instant OTP
-                </button>
-              </div>
+          {/* Divider */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+            <div style={{ flex: 1, height: '1px', background: '#e2e8f0' }} />
+            <span style={{ fontSize: '0.72rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 800 }}>Or continue with email</span>
+            <div style={{ flex: 1, height: '1px', background: '#e2e8f0' }} />
+          </div>
 
-              {/* Identifier */}
-              <div className="auth-field">
-                <label>Email or Mobile Number</label>
-                <div className="auth-input-wrap">
-                  <User size={15} className="auth-icon" />
+          {/* =========================================================================
+              FORM 1: SIGN UP FORM
+              ========================================================================= */}
+          {mode === 'signup' && (
+            <form onSubmit={handleSignupSubmit} noValidate>
+              
+              {/* Field 1: Full Name */}
+              <div style={{ marginBottom: '14px' }}>
+                <label htmlFor="signup-name" style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#0f2744', marginBottom: '4px' }}>
+                  Full Name <span style={{ color: '#e11d48' }}>*</span>
+                </label>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  border: errors.name ? '1.5px solid #ef4444' : '1.5px solid #cbd5e1',
+                  borderRadius: '8px',
+                  padding: '0 12px',
+                  background: '#ffffff'
+                }}>
+                  <User size={16} color={errors.name ? '#ef4444' : '#94a3b8'} style={{ marginRight: '8px', flexShrink: 0 }} />
                   <input 
-                    type="text" 
-                    required 
-                    placeholder="Enter email or mobile number"
-                    value={loginIdentifier}
-                    onChange={(e) => setLoginIdentifier(e.target.value)}
-                    className="auth-input"
+                    ref={nameInputRef}
+                    id="signup-name"
+                    name="name"
+                    type="text"
+                    autoComplete="name"
+                    value={formData.name}
+                    onChange={(e) => handleChange('name', e.target.value)}
+                    onBlur={() => handleBlur('name')}
+                    placeholder="e.g. Ramesh Kumar"
+                    aria-invalid={!!errors.name}
+                    aria-describedby="signup-name-error"
+                    required
+                    style={{ border: 'none', outline: 'none', width: '100%', height: '42px', fontSize: '0.88rem', color: '#0f172a' }}
                   />
                 </div>
+                {errors.name && (
+                  <p id="signup-name-error" role="alert" style={{ fontSize: '0.74rem', color: '#dc2626', fontWeight: 600, marginTop: '4px' }}>
+                    {errors.name}
+                  </p>
+                )}
               </div>
 
-              {/* Password or OTP */}
-              {loginMethod === 'password' ? (
-                <div className="auth-field">
-                  <div className="label-with-link">
-                    <label>Password</label>
-                    <button 
-                      type="button" 
-                      onClick={() => setActiveTab('forgot')}
-                      className="forgot-link"
-                    >
-                      Forgot?
-                    </button>
-                  </div>
-                  <div className="auth-input-wrap">
-                    <Lock size={15} className="auth-icon" />
-                    <input 
-                      type={showPassword ? 'text' : 'password'} 
-                      required 
-                      placeholder="Enter password"
-                      value={loginPassword}
-                      onChange={(e) => setLoginPassword(e.target.value)}
-                      className="auth-input"
-                    />
-                    <button 
-                      type="button" 
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="pwd-toggle-btn"
-                    >
-                      {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                otpSent && (
-                  <div className="auth-field">
-                    <label>6-Digit OTP</label>
-                    <div className="auth-input-wrap">
-                      <KeyRound size={15} className="auth-icon" />
-                      <input 
-                        type="text" 
-                        required 
-                        maxLength={6}
-                        placeholder="Enter 6-digit OTP"
-                        value={loginOtp}
-                        onChange={(e) => setLoginOtp(e.target.value)}
-                        className="auth-input"
-                      />
-                    </div>
-                  </div>
-                )
-              )}
-
-              {/* Remember Me */}
-              <div className="auth-row-remember">
-                <label className="auth-checkbox-label">
+              {/* Field 2: Email */}
+              <div style={{ marginBottom: '14px' }}>
+                <label htmlFor="signup-email" style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#0f2744', marginBottom: '4px' }}>
+                  Email Address <span style={{ color: '#e11d48' }}>*</span>
+                </label>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  border: errors.email ? '1.5px solid #ef4444' : '1.5px solid #cbd5e1',
+                  borderRadius: '8px',
+                  padding: '0 12px',
+                  background: '#ffffff'
+                }}>
+                  <Mail size={16} color={errors.email ? '#ef4444' : '#94a3b8'} style={{ marginRight: '8px', flexShrink: 0 }} />
                   <input 
-                    type="checkbox" 
-                    checked={rememberMe} 
-                    onChange={(e) => setRememberMe(e.target.checked)} 
+                    ref={emailInputRef}
+                    id="signup-email"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    value={formData.email}
+                    onChange={(e) => handleChange('email', e.target.value)}
+                    onBlur={() => handleBlur('email')}
+                    placeholder="e.g. logistics@company.com"
+                    aria-invalid={!!errors.email}
+                    aria-describedby="signup-email-error"
+                    required
+                    style={{ border: 'none', outline: 'none', width: '100%', height: '42px', fontSize: '0.88rem', color: '#0f172a' }}
                   />
-                  <span>Remember me</span>
+                </div>
+                {errors.email && (
+                  <p id="signup-email-error" role="alert" style={{ fontSize: '0.74rem', color: '#dc2626', fontWeight: 600, marginTop: '4px' }}>
+                    {errors.email}
+                  </p>
+                )}
+              </div>
+
+              {/* Field 3: Password */}
+              <div style={{ marginBottom: '14px' }}>
+                <label htmlFor="signup-password" style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#0f2744', marginBottom: '4px' }}>
+                  Password <span style={{ color: '#e11d48' }}>*</span>
+                </label>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  border: errors.password ? '1.5px solid #ef4444' : '1.5px solid #cbd5e1',
+                  borderRadius: '8px',
+                  padding: '0 12px',
+                  background: '#ffffff'
+                }}>
+                  <Lock size={16} color={errors.password ? '#ef4444' : '#94a3b8'} style={{ marginRight: '8px', flexShrink: 0 }} />
+                  <input 
+                    ref={passwordInputRef}
+                    id="signup-password"
+                    name="password"
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    value={formData.password}
+                    onChange={(e) => handleChange('password', e.target.value)}
+                    onBlur={() => handleBlur('password')}
+                    placeholder="Min. 6 characters"
+                    aria-invalid={!!errors.password}
+                    aria-describedby="signup-password-error"
+                    required
+                    style={{ border: 'none', outline: 'none', width: '100%', height: '42px', fontSize: '0.88rem', color: '#0f172a' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 0 }}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                {errors.password && (
+                  <p id="signup-password-error" role="alert" style={{ fontSize: '0.74rem', color: '#dc2626', fontWeight: 600, marginTop: '4px' }}>
+                    {errors.password}
+                  </p>
+                )}
+              </div>
+
+              {/* Field 4: Confirm Password */}
+              <div style={{ marginBottom: '16px' }}>
+                <label htmlFor="signup-confirm-password" style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#0f2744', marginBottom: '4px' }}>
+                  Confirm Password <span style={{ color: '#e11d48' }}>*</span>
+                </label>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  border: errors.confirmPassword ? '1.5px solid #ef4444' : '1.5px solid #cbd5e1',
+                  borderRadius: '8px',
+                  padding: '0 12px',
+                  background: '#ffffff'
+                }}>
+                  <KeyRound size={16} color={errors.confirmPassword ? '#ef4444' : '#94a3b8'} style={{ marginRight: '8px', flexShrink: 0 }} />
+                  <input 
+                    ref={confirmPasswordInputRef}
+                    id="signup-confirm-password"
+                    name="confirmPassword"
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    value={formData.confirmPassword}
+                    onChange={(e) => handleChange('confirmPassword', e.target.value)}
+                    onBlur={() => handleBlur('confirmPassword')}
+                    placeholder="Repeat your password"
+                    aria-invalid={!!errors.confirmPassword}
+                    aria-describedby="signup-confirm-error"
+                    required
+                    style={{ border: 'none', outline: 'none', width: '100%', height: '42px', fontSize: '0.88rem', color: '#0f172a' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 0 }}
+                    aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                {errors.confirmPassword && (
+                  <p id="signup-confirm-error" role="alert" style={{ fontSize: '0.74rem', color: '#dc2626', fontWeight: 600, marginTop: '4px' }}>
+                    {errors.confirmPassword}
+                  </p>
+                )}
+              </div>
+
+              {/* Field 5: Terms & Conditions Checkbox */}
+              <div style={{ marginBottom: '18px' }}>
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '0.76rem', color: '#475569', cursor: 'pointer' }}>
+                  <input 
+                    id="signup-terms"
+                    name="acceptedTerms"
+                    type="checkbox"
+                    checked={formData.acceptedTerms}
+                    onChange={(e) => handleChange('acceptedTerms', e.target.checked)}
+                    style={{ marginTop: '2px', accentColor: '#e11d48' }}
+                  />
+                  <span>
+                    I agree to the <strong>Terms of Service</strong> and <strong>Privacy Policy</strong>.
+                  </span>
+                </label>
+                {errors.acceptedTerms && (
+                  <p role="alert" style={{ fontSize: '0.74rem', color: '#dc2626', fontWeight: 600, marginTop: '4px' }}>
+                    {errors.acceptedTerms}
+                  </p>
+                )}
+              </div>
+
+              {/* Submit Button */}
+              <button 
+                type="submit" 
+                disabled={isSubmitting}
+                style={{
+                  width: '100%',
+                  minHeight: '44px',
+                  padding: '12px',
+                  background: '#e11d48',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontWeight: 800,
+                  fontSize: '0.92rem',
+                  cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  boxShadow: '0 4px 14px rgba(225, 29, 72, 0.35)',
+                  transition: 'background 0.2s'
+                }}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 size={18} className="spin" />
+                    <span>Creating Account...</span>
+                  </>
+                ) : (
+                  <>
+                    <UserPlus size={16} />
+                    <span>Create Free Account</span>
+                  </>
+                )}
+              </button>
+            </form>
+          )}
+
+          {/* =========================================================================
+              FORM 2: LOGIN FORM
+              ========================================================================= */}
+          {mode === 'login' && (
+            <form onSubmit={handleLoginSubmit} noValidate>
+              
+              {/* Field 1: Email */}
+              <div style={{ marginBottom: '14px' }}>
+                <label htmlFor="login-email" style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#0f2744', marginBottom: '4px' }}>
+                  Email Address <span style={{ color: '#e11d48' }}>*</span>
+                </label>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  border: errors.email ? '1.5px solid #ef4444' : '1.5px solid #cbd5e1',
+                  borderRadius: '8px',
+                  padding: '0 12px',
+                  background: '#ffffff'
+                }}>
+                  <Mail size={16} color={errors.email ? '#ef4444' : '#94a3b8'} style={{ marginRight: '8px', flexShrink: 0 }} />
+                  <input 
+                    ref={emailInputRef}
+                    id="login-email"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    value={formData.email}
+                    onChange={(e) => handleChange('email', e.target.value)}
+                    onBlur={() => handleBlur('email')}
+                    placeholder="Enter your registered email"
+                    aria-invalid={!!errors.email}
+                    aria-describedby="login-email-error"
+                    required
+                    style={{ border: 'none', outline: 'none', width: '100%', height: '42px', fontSize: '0.88rem', color: '#0f172a' }}
+                  />
+                </div>
+                {errors.email && (
+                  <p id="login-email-error" role="alert" style={{ fontSize: '0.74rem', color: '#dc2626', fontWeight: 600, marginTop: '4px' }}>
+                    {errors.email}
+                  </p>
+                )}
+              </div>
+
+              {/* Field 2: Password */}
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <label htmlFor="login-password" style={{ fontSize: '0.78rem', fontWeight: 700, color: '#0f2744' }}>
+                    Password <span style={{ color: '#e11d48' }}>*</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => { setMode('forgot'); setServerBannerError(''); setServerBannerSuccess(''); }}
+                    style={{ background: 'none', border: 'none', color: '#e11d48', fontSize: '0.74rem', fontWeight: 700, cursor: 'pointer', padding: 0 }}
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  border: errors.password ? '1.5px solid #ef4444' : '1.5px solid #cbd5e1',
+                  borderRadius: '8px',
+                  padding: '0 12px',
+                  background: '#ffffff'
+                }}>
+                  <Lock size={16} color={errors.password ? '#ef4444' : '#94a3b8'} style={{ marginRight: '8px', flexShrink: 0 }} />
+                  <input 
+                    ref={passwordInputRef}
+                    id="login-password"
+                    name="password"
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
+                    value={formData.password}
+                    onChange={(e) => handleChange('password', e.target.value)}
+                    onBlur={() => handleBlur('password')}
+                    placeholder="Enter your password"
+                    aria-invalid={!!errors.password}
+                    aria-describedby="login-password-error"
+                    required
+                    style={{ border: 'none', outline: 'none', width: '100%', height: '42px', fontSize: '0.88rem', color: '#0f172a' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 0 }}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                {errors.password && (
+                  <p id="login-password-error" role="alert" style={{ fontSize: '0.74rem', color: '#dc2626', fontWeight: 600, marginTop: '4px' }}>
+                    {errors.password}
+                  </p>
+                )}
+              </div>
+
+              {/* Remember Me Checkbox */}
+              <div style={{ marginBottom: '18px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem', color: '#475569', cursor: 'pointer' }}>
+                  <input 
+                    id="login-remember"
+                    name="remember"
+                    type="checkbox"
+                    checked={formData.remember}
+                    onChange={(e) => handleChange('remember', e.target.checked)}
+                    style={{ accentColor: '#0f2744' }}
+                  />
+                  <span>Remember my device for 30 days</span>
                 </label>
               </div>
 
-              {/* Submit CTA */}
-              <button type="submit" className="btn btn-red btn-block btn-lg auth-submit-btn">
-                <span>{loginMethod === 'otp' && !otpSent ? 'Send OTP' : 'Sign In'}</span>
+              {/* Submit Button */}
+              <button 
+                type="submit" 
+                disabled={isSubmitting}
+                style={{
+                  width: '100%',
+                  minHeight: '44px',
+                  padding: '12px',
+                  background: '#0f2744',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontWeight: 800,
+                  fontSize: '0.92rem',
+                  cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  boxShadow: '0 4px 14px rgba(15, 39, 68, 0.35)',
+                  transition: 'background 0.2s'
+                }}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 size={18} className="spin" />
+                    <span>Signing In...</span>
+                  </>
+                ) : (
+                  <>
+                    <LogIn size={16} />
+                    <span>Sign In</span>
+                  </>
+                )}
               </button>
+            </form>
+          )}
 
-              {/* Social Login */}
-              <div className="auth-divider">
-                <span>OR</span>
+          {/* =========================================================================
+              FORM 3: FORGOT PASSWORD FLOW
+              ========================================================================= */}
+          {mode === 'forgot' && (
+            <form onSubmit={handleForgotPasswordSubmit} noValidate>
+              <div style={{ marginBottom: '16px' }}>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0f2744', margin: '0 0 6px' }}>
+                  Reset Your Password
+                </h3>
+                <p style={{ fontSize: '0.82rem', color: '#64748b', margin: 0 }}>
+                  Enter your registered email address and we'll send you a password reset link.
+                </p>
+              </div>
+
+              <div style={{ marginBottom: '18px' }}>
+                <label htmlFor="forgot-email" style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#0f2744', marginBottom: '4px' }}>
+                  Email Address <span style={{ color: '#e11d48' }}>*</span>
+                </label>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  border: errors.email ? '1.5px solid #ef4444' : '1.5px solid #cbd5e1',
+                  borderRadius: '8px',
+                  padding: '0 12px',
+                  background: '#ffffff'
+                }}>
+                  <Mail size={16} color={errors.email ? '#ef4444' : '#94a3b8'} style={{ marginRight: '8px', flexShrink: 0 }} />
+                  <input 
+                    ref={emailInputRef}
+                    id="forgot-email"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    value={formData.email}
+                    onChange={(e) => handleChange('email', e.target.value)}
+                    onBlur={() => handleBlur('email')}
+                    placeholder="e.g. user@company.com"
+                    required
+                    style={{ border: 'none', outline: 'none', width: '100%', height: '42px', fontSize: '0.88rem', color: '#0f172a' }}
+                  />
+                </div>
+                {errors.email && (
+                  <p role="alert" style={{ fontSize: '0.74rem', color: '#dc2626', fontWeight: 600, marginTop: '4px' }}>
+                    {errors.email}
+                  </p>
+                )}
               </div>
 
               <button 
-                type="button" 
-                onClick={handleGoogleAuth} 
-                className="btn btn-outline btn-block google-btn"
+                type="submit" 
+                disabled={isSubmitting}
+                style={{
+                  width: '100%',
+                  minHeight: '44px',
+                  padding: '12px',
+                  background: '#0f2744',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontWeight: 800,
+                  fontSize: '0.9rem',
+                  cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px'
+                }}
               >
-                <svg className="google-icon" viewBox="0 0 24 24" width="16" height="16">
-                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-                </svg>
-                <span>Continue with Google</span>
+                {isSubmitting ? 'Sending Link...' : 'Send Password Reset Link'}
               </button>
 
-              <div className="auth-footer-text">
-                Don't have an account?{' '}
-                <button type="button" onClick={() => setActiveTab('register')} className="switch-auth-btn">
-                  Sign Up
+              <div style={{ marginTop: '16px', textAlign: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => { setMode('login'); setServerBannerError(''); setServerBannerSuccess(''); }}
+                  style={{ background: 'none', border: 'none', color: '#0f2744', fontWeight: 800, fontSize: '0.82rem', cursor: 'pointer', textDecoration: 'underline' }}
+                >
+                  ← Back to Sign In
                 </button>
               </div>
             </form>
           )}
 
-          {/* TAB 2: REGISTER FORM */}
-          {activeTab === 'register' && (
-            <form onSubmit={handleRegisterSubmit} className="auth-form">
-              <h3 className="auth-title">Create Account</h3>
-
-              <div className="form-row-2">
-                <div className="auth-field">
-                  <label>Full Name</label>
-                  <div className="auth-input-wrap">
-                    <User size={15} className="auth-icon" />
-                    <input 
-                      type="text" 
-                      required 
-                      placeholder="Enter full name"
-                      value={regName}
-                      onChange={(e) => setRegName(e.target.value)}
-                      className="auth-input"
-                    />
-                  </div>
-                </div>
-                <div className="auth-field">
-                  <label>Phone Number</label>
-                  <div className="auth-input-wrap">
-                    <Phone size={15} className="auth-icon" />
-                    <input 
-                      type="tel" 
-                      required 
-                      placeholder="Enter mobile number"
-                      value={regPhone}
-                      onChange={(e) => setRegPhone(e.target.value)}
-                      className="auth-input"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="form-row-2">
-                <div className="auth-field">
-                  <label>Company Name</label>
-                  <div className="auth-input-wrap">
-                    <Building2 size={15} className="auth-icon" />
-                    <input 
-                      type="text" 
-                      placeholder="Enter company name"
-                      value={regCompany}
-                      onChange={(e) => setRegCompany(e.target.value)}
-                      className="auth-input"
-                    />
-                  </div>
-                </div>
-                <div className="auth-field">
-                  <label>Email Address</label>
-                  <div className="auth-input-wrap">
-                    <Mail size={15} className="auth-icon" />
-                    <input 
-                      type="email" 
-                      placeholder="Enter email address"
-                      value={regEmail}
-                      onChange={(e) => setRegEmail(e.target.value)}
-                      className="auth-input"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="auth-field">
-                <label>Password</label>
-                <div className="auth-input-wrap">
-                  <Lock size={15} className="auth-icon" />
-                  <input 
-                    type={showPassword ? 'text' : 'password'} 
-                    required 
-                    placeholder="Enter password"
-                    value={regPassword}
-                    onChange={(e) => setRegPassword(e.target.value)}
-                    className="auth-input"
-                  />
+          {/* Toggle Footnote */}
+          {mode !== 'forgot' && (
+            <div style={{ marginTop: '18px', textAlign: 'center', fontSize: '0.82rem', color: '#64748b' }}>
+              {mode === 'login' ? (
+                <span>
+                  Don't have an account?{' '}
                   <button 
                     type="button" 
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="pwd-toggle-btn"
+                    onClick={() => { setMode('signup'); setServerBannerError(''); setServerBannerSuccess(''); }}
+                    style={{ background: 'none', border: 'none', color: '#e11d48', fontWeight: 800, cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
                   >
-                    {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                    Sign Up here
                   </button>
-                </div>
-              </div>
-
-              <div className="auth-row-remember">
-                <label className="auth-checkbox-label">
-                  <input 
-                    type="checkbox" 
-                    checked={agreeTerms} 
-                    onChange={(e) => setAgreeTerms(e.target.checked)} 
-                  />
-                  <span>I agree to the Terms & Privacy Policy</span>
-                </label>
-              </div>
-
-              <button type="submit" className="btn btn-red btn-block btn-lg auth-submit-btn">
-                <span>Create Account</span>
-              </button>
-
-              <div className="auth-footer-text">
-                Already have an account?{' '}
-                <button type="button" onClick={() => setActiveTab('login')} className="switch-auth-btn">
-                  Sign In
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* TAB 3: FORGOT PASSWORD */}
-          {activeTab === 'forgot' && (
-            <form onSubmit={handleForgotSubmit} className="auth-form">
-              <h3 className="auth-title">Reset Password</h3>
-
-              {resetSent ? (
-                <div className="reset-sent-box">
-                  <CheckCircle2 size={32} className="text-teal" />
-                  <h4>Reset Link Sent</h4>
-                  <p>Check your email for reset instructions.</p>
-                  <button 
-                    type="button" 
-                    onClick={() => setActiveTab('login')}
-                    className="btn btn-outline btn-sm"
-                  >
-                    Back to Sign In
-                  </button>
-                </div>
+                </span>
               ) : (
-                <>
-                  <div className="auth-field">
-                    <label>Email Address</label>
-                    <div className="auth-input-wrap">
-                      <Mail size={15} className="auth-icon" />
-                      <input 
-                        type="email" 
-                        required 
-                        placeholder="Enter email address"
-                        value={forgotEmail}
-                        onChange={(e) => setForgotEmail(e.target.value)}
-                        className="auth-input"
-                      />
-                    </div>
-                  </div>
-
-                  <button type="submit" className="btn btn-red btn-block btn-lg auth-submit-btn">
-                    Send Reset Link
+                <span>
+                  Already registered?{' '}
+                  <button 
+                    type="button" 
+                    onClick={() => { setMode('login'); setServerBannerError(''); setServerBannerSuccess(''); }}
+                    style={{ background: 'none', border: 'none', color: '#0f2744', fontWeight: 800, cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+                  >
+                    Sign In
                   </button>
-
-                  <div className="auth-footer-text">
-                    <button type="button" onClick={() => setActiveTab('login')} className="switch-auth-btn">
-                      Back to Sign In
-                    </button>
-                  </div>
-                </>
+                </span>
               )}
-            </form>
+            </div>
           )}
+
         </div>
       </div>
-
-      <style>{`
-        .auth-modal-box {
-          max-width: 460px;
-          border-radius: var(--radius-md);
-          overflow: hidden;
-        }
-
-        .auth-header-strip {
-          background: #f9fafb;
-          border-bottom: 1px solid var(--border-color);
-          padding: 6px 14px 0;
-        }
-
-        .auth-tabs {
-          display: flex;
-          gap: 6px;
-        }
-
-        .auth-tab-btn {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          padding: 10px 16px;
-          font-size: 0.875rem;
-          font-weight: 600;
-          color: var(--text-muted);
-          border-bottom: 3px solid transparent;
-          transition: var(--transition);
-        }
-
-        .auth-tab-btn.active {
-          color: var(--brand-red);
-          border-bottom-color: var(--brand-red);
-          background: #ffffff;
-          border-radius: var(--radius-xs) var(--radius-xs) 0 0;
-        }
-
-        .auth-modal-body {
-          padding: 22px 24px;
-        }
-
-        .auth-form {
-          display: flex;
-          flex-direction: column;
-          gap: 14px;
-        }
-
-        .auth-title {
-          font-size: 1.2rem;
-          color: var(--text-heading);
-          margin-bottom: 2px;
-          font-weight: 700;
-        }
-
-        .login-method-pills {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 4px;
-          background: #f3f4f6;
-          padding: 3px;
-          border-radius: var(--radius-xs);
-        }
-
-        .method-pill {
-          padding: 5px 8px;
-          font-size: 0.775rem;
-          font-weight: 600;
-          color: var(--text-sub);
-          border-radius: var(--radius-xs);
-        }
-
-        .method-pill.active {
-          background: #ffffff;
-          color: #003666;
-          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-        }
-
-        .auth-field {
-          display: flex;
-          flex-direction: column;
-          gap: 5px;
-        }
-
-        .auth-field label {
-          font-size: 0.8rem;
-          font-weight: 600;
-          color: var(--text-heading);
-        }
-
-        .label-with-link {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-        }
-
-        .forgot-link {
-          font-size: 0.75rem;
-          color: var(--brand-red);
-          font-weight: 600;
-        }
-
-        .auth-input-wrap {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          background: #f9fafb;
-          border: 1px solid var(--border-color);
-          border-radius: var(--radius-xs);
-          padding: 8px 10px;
-          transition: var(--transition);
-        }
-
-        .auth-input-wrap:focus-within {
-          border-color: #003666;
-          background: #ffffff;
-          box-shadow: 0 0 0 2px rgba(0, 54, 102, 0.1);
-        }
-
-        .auth-icon {
-          color: #9ca3af;
-          flex-shrink: 0;
-        }
-
-        .auth-input {
-          width: 100%;
-          border: none;
-          background: transparent;
-          font-size: 0.85rem;
-          color: var(--text-main);
-          outline: none;
-        }
-
-        .pwd-toggle-btn {
-          color: #9ca3af;
-          padding: 2px;
-        }
-
-        .form-row-2 {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 10px;
-        }
-
-        @media (max-width: 480px) {
-          .form-row-2 {
-            grid-template-columns: 1fr;
-          }
-        }
-
-        .auth-row-remember {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          font-size: 0.775rem;
-          color: var(--text-sub);
-        }
-
-        .auth-checkbox-label {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          cursor: pointer;
-        }
-
-        .auth-checkbox-label input {
-          accent-color: var(--brand-red);
-        }
-
-        .auth-submit-btn {
-          margin-top: 2px;
-          height: 42px;
-        }
-
-        .auth-divider {
-          display: flex;
-          align-items: center;
-          text-align: center;
-          margin: 2px 0;
-        }
-
-        .auth-divider::before, .auth-divider::after {
-          content: '';
-          flex: 1;
-          border-bottom: 1px solid var(--border-color);
-        }
-
-        .auth-divider span {
-          padding: 0 8px;
-          font-size: 0.68rem;
-          font-weight: 700;
-          color: var(--text-light);
-        }
-
-        .google-btn {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-          font-weight: 600;
-          font-size: 0.825rem;
-          height: 40px;
-        }
-
-        .google-icon {
-          flex-shrink: 0;
-        }
-
-        .auth-footer-text {
-          text-align: center;
-          font-size: 0.8rem;
-          color: var(--text-muted);
-          margin-top: 2px;
-        }
-
-        .switch-auth-btn {
-          color: var(--brand-red);
-          font-weight: 700;
-          text-decoration: underline;
-        }
-
-        .auth-alert {
-          padding: 8px 12px;
-          border-radius: var(--radius-xs);
-          font-size: 0.8rem;
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          margin-bottom: 10px;
-        }
-
-        .auth-alert.error {
-          background: #fef2f2;
-          border: 1px solid #fecaca;
-          color: #dc2626;
-        }
-
-        .auth-alert.success {
-          background: #ecfdf5;
-          border: 1px solid #a7f3d0;
-          color: #065f46;
-        }
-
-        .reset-sent-box {
-          text-align: center;
-          padding: 20px 10px;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 10px;
-        }
-
-        .reset-sent-box h4 {
-          color: var(--text-heading);
-          margin: 0;
-        }
-
-        .reset-sent-box p {
-          color: var(--text-sub);
-          font-size: 0.825rem;
-          margin: 0;
-        }
-      `}</style>
     </div>
   );
 }

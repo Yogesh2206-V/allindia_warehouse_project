@@ -5,9 +5,6 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { connectDB } from './config/db.js';
 
-import propertyRoutes from './routes/propertyRoutes.js';
-import inquiryRoutes from './routes/inquiryRoutes.js';
-import requirementRoutes from './routes/requirementRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import marketplaceRoutes from './routes/marketplaceRoutes.js';
 
@@ -33,16 +30,13 @@ app.use(express.urlencoded({ extended: true }));
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'healthy',
-    app: 'All India Warehouse Industrial API',
-    version: '1.0.0',
+    app: 'All India Warehouse Marketplace API',
+    version: '2.0.0',
     timestamp: new Date().toISOString()
   });
 });
 
 // API Routes
-app.use('/api/properties', propertyRoutes);
-app.use('/api/inquiries', inquiryRoutes);
-app.use('/api/requirements', requirementRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/marketplace', marketplaceRoutes);
 
@@ -52,10 +46,10 @@ app.get('/api', (req, res) => {
     message: 'Welcome to All India Warehouse Backend API',
     endpoints: {
       health: 'GET /api/health',
-      properties: 'GET /api/properties, POST /api/properties, GET /api/properties/:id',
-      inquiries: 'POST /api/inquiries, GET /api/inquiries',
-      requirements: 'POST /api/requirements, GET /api/requirements',
-      auth: 'POST /api/auth/register, POST /api/auth/login, POST /api/auth/save-property'
+      marketplace_properties: 'GET /api/marketplace/properties, GET /api/marketplace/properties/:id',
+      post_property: 'POST /api/marketplace/post-property',
+      leads: 'POST /api/marketplace/leads',
+      auth: 'POST /api/auth/register, POST /api/auth/login'
     }
   });
 });
@@ -78,3 +72,4 @@ app.listen(PORT, () => {
   console.log(`📡 API Base: http://localhost:${PORT}/api`);
   console.log(`=========================================`);
 });
+

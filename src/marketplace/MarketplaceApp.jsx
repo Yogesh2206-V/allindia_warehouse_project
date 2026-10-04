@@ -2,30 +2,32 @@ import React, { useState, useEffect } from 'react';
 import MarketplaceListingPage from './components/MarketplaceListingPage';
 import MarketplacePropertyDetail from './components/MarketplacePropertyDetail';
 import MarketplacePostPropertyWizard from './components/MarketplacePostPropertyWizard';
+import MarketplaceRolePortals from './components/MarketplaceRolePortals';
 import MarketplaceAdminPanel from './components/MarketplaceAdminPanel';
 import MarketplaceLeadUnlockModal from './components/MarketplaceLeadUnlockModal';
 import { marketplaceApi } from './services/marketplaceApi';
 import './marketplace.css';
 
-export default function MarketplaceApp({ onOpenRequirement, initialView = 'listings' }) {
-  const [currentView, setCurrentView] = useState(initialView); // 'listings' | 'detail' | 'post-property' | 'admin'
+export default function MarketplaceApp({ initialView = 'listings' }) {
+  const [currentView, setCurrentView] = useState(initialView); // 'listings' | 'detail' | 'post-property' | 'portal' | 'admin'
   const [selectedProperty, setSelectedProperty] = useState(null);
   const [allProperties, setAllProperties] = useState([]);
   const [leadModalOpen, setLeadModalOpen] = useState(false);
   const [leadProperty, setLeadProperty] = useState(null);
   const [savedIds, setSavedIds] = useState([]);
+  const [portalRole, setPortalRole] = useState('buyer');
 
-  // Load all properties for similar recommendations & detail lookup
-  useEffect(() => {
-    const loadData = async () => {
-      const data = await marketplaceApi.getProperties({});
-      setAllProperties(data);
-    };
-    loadData();
+  const loadData = async () => {
+    const data = await marketplaceApi.getProperties({});
+    setAllProperties(data);
     setSavedIds(marketplaceApi.getSavedPropertyIds());
+  };
+
+  useEffect(() => {
+    loadData();
   }, []);
 
-  // Hash change routing support (e.g. #/properties, #/property/101, #/post-property, #/admin)
+  // Hash change routing support (e.g. #/properties, #/property/101, #/post-property, #/portal/owner, #/admin)
   useEffect(() => {
     const handleHashChange = async () => {
       const hash = window.location.hash;
@@ -38,9 +40,13 @@ export default function MarketplaceApp({ onOpenRequirement, initialView = 'listi
         }
       } else if (hash === '#/post-property') {
         setCurrentView('post-property');
+      } else if (hash.startsWith('#/portal')) {
+        const role = hash.replace('#/portal/', '').replace('#/portal', '') || 'buyer';
+        setPortalRole(role === 'owner' || role === 'dealer' ? role : 'buyer');
+        setCurrentView('portal');
       } else if (hash === '#/admin') {
         setCurrentView('admin');
-      } else if (hash === '#/properties' || hash === '#/marketplace') {
+      } else {
         setCurrentView('listings');
       }
     };
@@ -73,18 +79,9 @@ export default function MarketplaceApp({ onOpenRequirement, initialView = 'listi
     setSavedIds(updated);
   };
 
-  const handleEnquireService = (serviceTitle) => {
-    if (onOpenRequirement) {
-      onOpenRequirement('need', {
-        title: `Service Enquiry: ${serviceTitle}`,
-        category: 'Consultancy & Logistics',
-        notes: `Customer requested details regarding ${serviceTitle}`
-      });
-    }
-  };
-
   return (
     <div className="marketplace-app-root">
+      
       {/* 1. Main View Switcher */}
       {currentView === 'listings' && (
         <MarketplaceListingPage 
@@ -94,7 +91,6 @@ export default function MarketplaceApp({ onOpenRequirement, initialView = 'listi
             setCurrentView('post-property');
             window.location.hash = '#/post-property';
           }}
-          onEnquireService={handleEnquireService}
         />
       )}
 
@@ -117,13 +113,25 @@ export default function MarketplaceApp({ onOpenRequirement, initialView = 'listi
         />
       )}
 
+      {currentView === 'portal' && (
+        <MarketplaceRolePortals 
+          initialRole={portalRole}
+          onNavigatePostProperty={() => {
+            setCurrentView('post-property');
+            window.location.hash = '#/post-property';
+          }}
+          onSelectProperty={handleSelectProperty}
+          onBackToList={handleBackToList}
+        />
+      )}
+
       {currentView === 'admin' && (
         <MarketplaceAdminPanel 
           onBack={handleBackToList}
         />
       )}
 
-      {/* 2. Lead Contact Unlock Modal */}
+      {/* 2. Lead Contact Unlock / Property Enquiry Modal */}
       {leadModalOpen && leadProperty && (
         <MarketplaceLeadUnlockModal 
           isOpen={leadModalOpen}
