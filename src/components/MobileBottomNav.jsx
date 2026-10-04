@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Building2, Search, PlusCircle, User, MessageSquare, PhoneCall } from 'lucide-react';
+import { Home, Building2, Search, PlusCircle, User, Briefcase, FileText } from 'lucide-react';
 
 export default function MobileBottomNav({ currentUser, onOpenAuth }) {
-  const [currentHash, setCurrentHash] = useState(window.location.hash || '#/properties');
+  const [currentHash, setCurrentHash] = useState(window.location.hash || '#/');
 
   useEffect(() => {
     const onHashChange = () => {
-      setCurrentHash(window.location.hash || '#/properties');
+      setCurrentHash(window.location.hash || '#/');
     };
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
@@ -17,20 +17,6 @@ export default function MobileBottomNav({ currentUser, onOpenAuth }) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleSearchClick = () => {
-    if (window.location.hash !== '#/properties' && window.location.hash !== '') {
-      window.location.hash = '#/properties';
-    }
-    setTimeout(() => {
-      const searchBox = document.querySelector('.aiw-search-bar-root') || document.querySelector('select');
-      if (searchBox) {
-        searchBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      } else {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
-    }, 100);
-  };
-
   const handleAccountClick = () => {
     if (currentUser) {
       navigateTo('#/portal/owner');
@@ -39,27 +25,29 @@ export default function MobileBottomNav({ currentUser, onOpenAuth }) {
     }
   };
 
-  const isListingActive = currentHash === '' || currentHash === '#/' || currentHash.startsWith('#/properties');
+  const isHomeActive = currentHash === '' || currentHash === '#/' || currentHash === '#/home';
+  const isSearchActive = currentHash.startsWith('#/properties') || currentHash.startsWith('#/search');
   const isPostActive = currentHash === '#/post-property';
+  const isServicesActive = currentHash === '#/services';
   const isPortalActive = currentHash.startsWith('#/portal');
 
   return (
     <nav className="aiw-mobile-bottom-nav" aria-label="Mobile Bottom Navigation">
-      {/* 1. Explore */}
+      {/* 1. Home */}
       <button 
         type="button"
-        className={`aiw-bottom-tab ${isListingActive ? 'active' : ''}`}
-        onClick={() => navigateTo('#/properties')}
+        className={`aiw-bottom-tab ${isHomeActive ? 'active' : ''}`}
+        onClick={() => navigateTo('#/')}
       >
-        <Building2 size={20} className="aiw-bottom-icon" />
-        <span className="aiw-bottom-label">Explore</span>
+        <Home size={20} className="aiw-bottom-icon" />
+        <span className="aiw-bottom-label">Home</span>
       </button>
 
-      {/* 2. Quick Search & Filter */}
+      {/* 2. Search Warehouses */}
       <button 
         type="button"
-        className="aiw-bottom-tab"
-        onClick={handleSearchClick}
+        className={`aiw-bottom-tab ${isSearchActive ? 'active' : ''}`}
+        onClick={() => navigateTo('#/properties')}
       >
         <Search size={20} className="aiw-bottom-icon" />
         <span className="aiw-bottom-label">Search</span>
@@ -77,18 +65,17 @@ export default function MobileBottomNav({ currentUser, onOpenAuth }) {
         <span className="aiw-bottom-label" style={{ color: '#e11d48', fontWeight: 800 }}>+ Post</span>
       </button>
 
-      {/* 4. Instant WhatsApp Support */}
-      <a 
-        href="https://wa.me/919884012341?text=Hi%20All%20India%20Warehouse%2C%20I%20am%20interested%20in%20warehouse%20and%20industrial%20properties"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="aiw-bottom-tab aiw-bottom-wa-btn"
+      {/* 4. Services */}
+      <button 
+        type="button"
+        className={`aiw-bottom-tab ${isServicesActive ? 'active' : ''}`}
+        onClick={() => navigateTo('#/services')}
       >
-        <MessageSquare size={20} className="aiw-bottom-icon" />
-        <span className="aiw-bottom-label">WhatsApp</span>
-      </a>
+        <FileText size={20} className="aiw-bottom-icon" />
+        <span className="aiw-bottom-label">Services</span>
+      </button>
 
-      {/* 5. Account / Login */}
+      {/* 5. Account / Portal */}
       <button 
         type="button"
         className={`aiw-bottom-tab ${isPortalActive ? 'active' : ''}`}

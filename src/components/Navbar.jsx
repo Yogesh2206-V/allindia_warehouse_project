@@ -60,7 +60,7 @@ export default function Navbar({ currentUser, onLogout, onOpenAuth }) {
         
         {/* Brand Logo */}
         <div 
-          onClick={() => handleNavClick('#/properties')}
+          onClick={() => handleNavClick('#/')}
           style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', flexShrink: 0 }}
         >
           <div style={{ width: 38, height: 38, background: '#0f2744', color: '#ffffff', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 6px rgba(15,39,68,0.2)' }}>
@@ -71,7 +71,7 @@ export default function Navbar({ currentUser, onLogout, onOpenAuth }) {
               ALL INDIA <span style={{ color: '#e11d48' }}>WAREHOUSE</span>
             </div>
             <div style={{ fontSize: '0.68rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Property Classifieds
+              Zero Brokerage Classifieds
             </div>
           </div>
         </div>
@@ -80,14 +80,34 @@ export default function Navbar({ currentUser, onLogout, onOpenAuth }) {
         <div className="desktop-only" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <button 
             type="button"
+            onClick={() => handleNavClick('#/')}
+            style={{ background: 'none', border: 'none', color: '#334155', fontWeight: 700, fontSize: '0.88rem', cursor: 'pointer', transition: 'color 0.15s' }}
+            onMouseOver={(e) => e.target.style.color = '#e11d48'}
+            onMouseOut={(e) => e.target.style.color = '#334155'}
+          >
+            Home
+          </button>
+
+          <button 
+            type="button"
             onClick={() => handleNavClick('#/properties')}
             style={{ background: 'none', border: 'none', color: '#334155', fontWeight: 700, fontSize: '0.88rem', cursor: 'pointer', transition: 'color 0.15s' }}
             onMouseOver={(e) => e.target.style.color = '#e11d48'}
             onMouseOut={(e) => e.target.style.color = '#334155'}
           >
-            All Warehouses
+            Find Warehouses
           </button>
           
+          <button 
+            type="button"
+            onClick={() => handleNavClick('#/services')}
+            style={{ background: 'none', border: 'none', color: '#334155', fontWeight: 700, fontSize: '0.88rem', cursor: 'pointer', transition: 'color 0.15s' }}
+            onMouseOver={(e) => e.target.style.color = '#e11d48'}
+            onMouseOut={(e) => e.target.style.color = '#334155'}
+          >
+            Services
+          </button>
+
           <button 
             type="button"
             onClick={() => handleNavClick('#/portal/owner')}

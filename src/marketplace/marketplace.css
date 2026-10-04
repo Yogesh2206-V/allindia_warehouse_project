@@ -836,10 +836,225 @@
   box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05);
 }
 
-@media (max-width: 640px) {
-  .aiw-wizard-card {
-    padding: 16px 14px;
+/* =========================================
+   NoBroker Hero Search Form & Mobile Layout
+   ========================================= */
+.nobroker-hero-form {
+  display: grid;
+  grid-template-columns: 220px 1fr auto;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+@media (max-width: 820px) {
+  .nobroker-hero-form {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  
+  .nobroker-hero-form button[type="submit"] {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  .nobroker-city-dropdown-menu {
+    width: 100% !important;
+    max-width: 100% !important;
+    left: 0 !important;
+    right: 0 !important;
   }
 }
+
+/* =========================================
+   NoBroker-style Listings Page Responsive Layout
+   ========================================= */
+.nobroker-listings-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 24px;
+  align-items: flex-start;
+  width: 100%;
+}
+
+.nobroker-sidebar-desktop {
+  display: block;
+}
+
+.nobroker-listings-main {
+  width: 100%;
+  min-width: 0;
+}
+
+.nobroker-mobile-filter-bar {
+  display: none;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  width: 100%;
+}
+
+.nobroker-mobile-filter-btn {
+  flex: 1;
+  height: 40px;
+  background: #ffffff;
+  border: 1.5px solid #004274;
+  color: #004274;
+  border-radius: 8px;
+  font-size: 0.86rem;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 66, 116, 0.08);
+  transition: all 0.15s ease;
+}
+
+.nobroker-mobile-filter-btn:hover {
+  background: #f0f7ff;
+}
+
+.nobroker-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+  width: 100%;
+}
+
+/* Mobile Filter Slide-In Drawer */
+.nobroker-mobile-filter-drawer-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(4px);
+  z-index: 9999;
+  display: flex;
+  justify-content: flex-end;
+  animation: aiwFadeIn 0.2s ease;
+}
+
+.nobroker-mobile-filter-drawer {
+  width: 340px;
+  max-width: 88vw;
+  height: 100%;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -8px 0 30px rgba(0,0,0,0.25);
+  animation: aiwSlideInRight 0.25s ease;
+}
+
+@keyframes aiwSlideInRight {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.nobroker-drawer-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f8fafc;
+}
+
+.nobroker-drawer-body {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+  -webkit-overflow-scrolling: touch;
+}
+
+.nobroker-drawer-footer {
+  padding: 14px 20px;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  gap: 10px;
+  background: #ffffff;
+}
+
+.nobroker-drawer-reset-btn {
+  flex: 1;
+  height: 44px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  border-radius: 8px;
+  font-size: 0.86rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.nobroker-drawer-apply-btn {
+  flex: 2;
+  height: 44px;
+  background: linear-gradient(135deg, #e11d48 0%, #be123c 100%);
+  border: none;
+  color: #ffffff;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(225, 29, 72, 0.3);
+}
+
+@media (max-width: 860px) {
+  .nobroker-listings-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 100%;
+  }
+
+  .nobroker-sidebar-desktop {
+    display: none !important;
+  }
+
+  .nobroker-desktop-sort {
+    display: none !important;
+  }
+
+  .nobroker-mobile-filter-bar {
+    display: flex !important;
+  }
+
+  .nobroker-results-header {
+    padding: 12px 16px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .nobroker-results-header h1 {
+    font-size: 1.05rem !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .nobroker-cards-grid {
+    grid-template-columns: 1fr !important;
+    gap: 14px !important;
+  }
+
+  .aiw-wizard-card {
+    padding: 16px;
+  }
+
+  .nobroker-az-strip {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 6px;
+  }
+
+  .nobroker-az-btn {
+    min-width: 28px !important;
+    height: 28px !important;
+    font-size: 0.75rem !important;
+  }
+}
+
 
 

@@ -6,12 +6,13 @@ import {
   LOCALITIES_BY_CITY,
   CATEGORIES_DATA
 } from '../data/sampleMarketplaceProperties';
+import LocalityAutocompleteInput from './LocalityAutocompleteInput';
 
 export default function MarketplaceSearchBar({ onSearch, activeFilters = {} }) {
   const [dealType, setDealType] = useState(activeFilters.dealType || activeFilters.purpose || 'all');
   const [category, setCategory] = useState(activeFilters.category || 'all');
   const [subType, setSubType] = useState(activeFilters.subType || 'all');
-  const [selectedState, setSelectedState] = useState(activeFilters.state || 'Tamil Nadu');
+  const [selectedState, setSelectedState] = useState(activeFilters.state || 'All States');
   const [selectedCity, setSelectedCity] = useState(activeFilters.city || 'Chennai');
   const [selectedArea, setSelectedArea] = useState(activeFilters.locality || '');
   const [minPrice, setMinPrice] = useState(activeFilters.minPrice || '');
@@ -23,6 +24,17 @@ export default function MarketplaceSearchBar({ onSearch, activeFilters = {} }) {
   const [extraFilterHeight, setExtraFilterHeight] = useState(false);
   const [extraFilterTruck, setExtraFilterTruck] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  useEffect(() => {
+    if (activeFilters.city !== undefined) setSelectedCity(activeFilters.city);
+    if (activeFilters.state !== undefined) setSelectedState(activeFilters.state);
+    if (activeFilters.locality !== undefined) setSelectedArea(activeFilters.locality);
+    if (activeFilters.dealType !== undefined || activeFilters.purpose !== undefined) {
+      setDealType(activeFilters.dealType || activeFilters.purpose || 'all');
+    }
+    if (activeFilters.category !== undefined) setCategory(activeFilters.category);
+    if (activeFilters.subType !== undefined) setSubType(activeFilters.subType);
+  }, [activeFilters]);
 
   const availableCities = CITIES_BY_STATE[selectedState] || ["Chennai", "Coimbatore", "Hosur"];
   const availableLocalities = LOCALITIES_BY_CITY[selectedCity] || [
@@ -212,21 +224,22 @@ export default function MarketplaceSearchBar({ onSearch, activeFilters = {} }) {
           </select>
         </div>
 
-        {/* Area / Locality (e.g. Porur) */}
-        <div>
+        {/* Area / Locality with Google-Style Autocomplete */}
+        <div style={{ minWidth: '220px' }}>
           <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>
-            Area / Locality
+            Search Locality / Landmark
           </label>
-          <select 
-            value={selectedArea}
-            onChange={(e) => setSelectedArea(e.target.value)}
-            style={{ width: '100%', height: '40px', padding: '0 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.84rem', fontWeight: selectedArea ? 800 : 600, background: '#f8fafc', color: selectedArea ? '#004274' : '#0f2744' }}
-          >
-            <option value="">All Areas in {selectedCity}</option>
-            {availableLocalities.map(loc => (
-              <option key={loc} value={loc}>{loc}</option>
-            ))}
-          </select>
+          <LocalityAutocompleteInput 
+            city={selectedCity}
+            selectedLocalities={selectedArea}
+            onChange={(val) => {
+              setSelectedArea(val);
+              triggerSearch({ locality: val });
+            }}
+            placeholder={`Search ${selectedCity} (e.g. MGR, Porur)...`}
+            isMulti={false}
+            inputHeight="40px"
+          />
         </div>
 
         {/* Action Buttons */}

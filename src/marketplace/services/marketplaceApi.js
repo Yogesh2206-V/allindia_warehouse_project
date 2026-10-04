@@ -1,9 +1,9 @@
 import { SAMPLE_MARKETPLACE_PROPERTIES } from '../data/sampleMarketplaceProperties';
 
 const API_BASE = '/api/marketplace';
-const LOCAL_STORAGE_KEY_PROPS = 'aiw_marketplace_properties_v2';
-const LOCAL_STORAGE_KEY_LEADS = 'aiw_marketplace_leads_v2';
-const LOCAL_STORAGE_KEY_SAVED = 'aiw_marketplace_saved_ids_v2';
+const LOCAL_STORAGE_KEY_PROPS = 'aiw_marketplace_properties_v3';
+const LOCAL_STORAGE_KEY_LEADS = 'aiw_marketplace_leads_v3';
+const LOCAL_STORAGE_KEY_SAVED = 'aiw_marketplace_saved_ids_v3';
 const LOCAL_STORAGE_KEY_USER_ROLE = 'aiw_current_user_role';
 
 // Helper to initialize local storage
@@ -14,7 +14,16 @@ function getLocalProperties() {
       localStorage.setItem(LOCAL_STORAGE_KEY_PROPS, JSON.stringify(SAMPLE_MARKETPLACE_PROPERTIES));
       return SAMPLE_MARKETPLACE_PROPERTIES;
     }
-    return JSON.parse(data);
+    const parsed = JSON.parse(data);
+    // Ensure all seed properties are present
+    const existingIds = new Set(parsed.map(p => p.id));
+    const missingSeeds = SAMPLE_MARKETPLACE_PROPERTIES.filter(s => !existingIds.has(s.id));
+    if (missingSeeds.length > 0) {
+      const merged = [...parsed, ...missingSeeds];
+      localStorage.setItem(LOCAL_STORAGE_KEY_PROPS, JSON.stringify(merged));
+      return merged;
+    }
+    return parsed;
   } catch (e) {
     return SAMPLE_MARKETPLACE_PROPERTIES;
   }
@@ -152,13 +161,25 @@ export const marketplaceApi = {
       list = list.filter(p => p.city?.toLowerCase().includes(filters.city.toLowerCase()));
     }
 
-    // Filter by Locality / Area (e.g. Porur)
+    // Filter by Locality / Area (e.g. Porur, Meenambakkam, MGR Nagar)
     if (filters.locality && filters.locality.trim() !== '' && filters.locality !== 'All Localities') {
-      list = list.filter(p => 
-        p.locality?.toLowerCase().includes(filters.locality.toLowerCase()) ||
-        p.title?.toLowerCase().includes(filters.locality.toLowerCase()) ||
-        p.description?.toLowerCase().includes(filters.locality.toLowerCase())
-      );
+      const locQueries = filters.locality.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+      list = list.filter(p => {
+        const pLoc = (p.locality || '').toLowerCase();
+        const pTitle = (p.title || '').toLowerCase();
+        const pDesc = (p.description || '').toLowerCase();
+        const pAddress = (p.address || '').toLowerCase();
+        const pLandmark = (p.landmark || '').toLowerCase();
+
+        return locQueries.some(q => 
+          pLoc.includes(q) || 
+          q.includes(pLoc) || 
+          pTitle.includes(q) || 
+          pDesc.includes(q) ||
+          pAddress.includes(q) ||
+          pLandmark.includes(q)
+        );
+      });
     }
 
     // Filter by Property Category / Type (Warehouse, Industrial Shed, Land, Commercial Office)
